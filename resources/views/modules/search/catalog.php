@@ -13,9 +13,12 @@ $hasFilters = !empty($_GET);
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Catálogo de Tutores | ProfeGo</title>
+    <link rel="stylesheet" href="/assets/css/app.css">
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-50 min-h-screen font-sans text-gray-800">
+
+<?php include __DIR__ . '/../../partials/navigation.php'; ?>
 
 <div class="py-8">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -146,6 +149,7 @@ $hasFilters = !empty($_GET);
 </div>
 
 <?php include __DIR__ . '/../../components/ai-widget.php'; ?>
+<?php include __DIR__ . '/../../partials/footer.php'; ?>
 
 </body>
 </html>
