@@ -6,6 +6,8 @@ namespace App\Modules\AIEngine\Controllers;
 
 use App\Modules\AIEngine\Adapters\MockAIAssistantAdapter;
 use App\Modules\AIEngine\Contracts\AIAssistantInterface;
+use App\Modules\SearchReputation\Repositories\SearchTutorRepository;
+use App\Shared\Database\Database;
 use InvalidArgumentException;
 
 class AIController
@@ -14,7 +16,9 @@ class AIController
 
     public function __construct(?AIAssistantInterface $aiAdapter = null)
     {
-        $this->aiAdapter = $aiAdapter ?? new MockAIAssistantAdapter();
+        $this->aiAdapter = $aiAdapter ?? new MockAIAssistantAdapter(
+            new SearchTutorRepository(Database::getConnection())
+        );
     }
 
     /**
@@ -51,7 +55,7 @@ class AIController
                 'status' => 'success',
                 'data' => $recommendations,
             ];
-        } catch (InvalidArgumentException $e) {
+        } catch (InvalidArgumentException|\RuntimeException $e) {
             return [
                 'status' => 'error',
                 'message' => 'Error al procesar la consulta: ' . $e->getMessage(),

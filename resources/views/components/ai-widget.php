@@ -51,13 +51,9 @@
             <div class="flex justify-start">
                 <div class="bg-white p-3 rounded-xl rounded-tl-none shadow-sm text-sm text-gray-700 max-w-[85%] border border-gray-100">
                     <p class="font-semibold text-indigo-600 mb-1">🤖 Hola</p>
-                    <p>Soy tu asistente de IA. Puedo recomendarte tutores en:</p>
-                    <ul class="mt-2 text-xs space-y-1">
-                        <li>• <strong>Cálculo</strong> - Diferencial, integral y multivariable</li>
-                        <li>• <strong>Programación</strong> - Python, JavaScript y más</li>
-                        <li>• <strong>Álgebra</strong> - Lineal y ecuaciones</li>
-                        <li>• <strong>Geometría</strong> - Figuras y trigonometría</li>
-                        <li>• <strong>Física</strong> - Clásica y moderna</li>
+                    <p>Soy tu asistente de IA. Consulta el catálogo de materias disponibles:</p>
+                    <ul id="ai-keywords" class="mt-2 text-xs space-y-1" aria-label="Materias disponibles">
+                        <li class="text-gray-500">Cargando materias...</li>
                     </ul>
                 </div>
             </div>
@@ -117,6 +113,41 @@
 
     // Estado del widget
     let isLoading = false;
+
+    async function loadKeywords() {
+        const keywordsList = document.getElementById('ai-keywords');
+
+        try {
+            const response = await fetch('/api/ai/keywords', {
+                headers: { 'Accept': 'application/json' },
+                credentials: 'include',
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const payload = await response.json();
+            const keywords = Array.isArray(payload.keywords) ? payload.keywords : [];
+            keywordsList.replaceChildren();
+
+            if (keywords.length === 0) {
+                keywordsList.innerHTML = '<li class="text-gray-500">No hay materias disponibles.</li>';
+                return;
+            }
+
+            keywords.forEach((keyword) => {
+                const item = document.createElement('li');
+                item.textContent = `• ${keyword}`;
+                keywordsList.appendChild(item);
+            });
+        } catch (error) {
+            console.error('No se pudieron cargar las materias del asistente:', error);
+            keywordsList.innerHTML = '<li class="text-red-500">No se pudieron cargar las materias.</li>';
+        }
+    }
+
+    loadKeywords();
 
     /**
      * Alterna la visibilidad del panel

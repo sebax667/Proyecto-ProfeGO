@@ -5,220 +5,135 @@ declare(strict_types=1);
 namespace App\Modules\AIEngine\Adapters;
 
 use App\Modules\AIEngine\Contracts\AIAssistantInterface;
+use App\Modules\SearchReputation\DTOs\SearchFiltersDTO;
+use App\Modules\SearchReputation\Repositories\SearchTutorRepository;
+use App\Shared\DTOs\TutorProfileDTO;
 
-/**
- * Mock AI Assistant Adapter
- * 
- * Proporciona respuestas simuladas de IA con recomendaciones basadas en palabras clave.
- * Simula latencia de red con usleep y filtra por temas específicos.
- */
 final class MockAIAssistantAdapter implements AIAssistantInterface
 {
-    /**
-     * Palabras clave válidas para procesamiento de recomendaciones
-     * 
-     * @var array<string>
-     */
     private const VALID_KEYWORDS = ['cálculo', 'programación', 'algebra', 'geometria', 'fisica'];
 
-    /**
-     * Recomendaciones de tutores por palabra clave
-     * 
-     * @var array<string, array<string, mixed>>
-     */
-    private const RECOMMENDATIONS = [
-        'cálculo' => [
-            'tutors' => [
-                [
-                    'id' => 1,
-                    'name' => 'Dr. Carlos Martínez',
-                    'specialty' => 'Cálculo Diferencial e Integral',
-                    'rating' => 4.9,
-                    'hourly_rate' => 35.00,
-                    'experience_years' => 12,
-                    'confidence' => 0.95,
-                ],
-                [
-                    'id' => 2,
-                    'name' => 'Ing. María González',
-                    'specialty' => 'Cálculo Multivariable',
-                    'rating' => 4.7,
-                    'hourly_rate' => 30.00,
-                    'experience_years' => 8,
-                    'confidence' => 0.88,
-                ],
-            ],
-            'message' => 'He encontrado tutores especializados en Cálculo. Te recomiendo empezar con ejercicios de límites y derivadas.',
-        ],
-        'programación' => [
-            'tutors' => [
-                [
-                    'id' => 3,
-                    'name' => 'Ing. Juan Pérez',
-                    'specialty' => 'Python y Algoritmos',
-                    'rating' => 4.8,
-                    'hourly_rate' => 32.00,
-                    'experience_years' => 10,
-                    'confidence' => 0.93,
-                ],
-                [
-                    'id' => 4,
-                    'name' => 'Lic. Ana Rodríguez',
-                    'specialty' => 'JavaScript y Frontend',
-                    'rating' => 4.6,
-                    'hourly_rate' => 28.00,
-                    'experience_years' => 7,
-                    'confidence' => 0.85,
-                ],
-            ],
-            'message' => 'Tengo recomendaciones de expertos en programación. ¿Qué lenguaje te interesa aprender?',
-        ],
-        'algebra' => [
-            'tutors' => [
-                [
-                    'id' => 5,
-                    'name' => 'Prof. David López',
-                    'specialty' => 'Álgebra Lineal',
-                    'rating' => 4.7,
-                    'hourly_rate' => 26.00,
-                    'experience_years' => 9,
-                    'confidence' => 0.89,
-                ],
-            ],
-            'message' => 'He identificado tutores en Álgebra. Te ayudarán con ecuaciones, matrices y espacios vectoriales.',
-        ],
-        'geometria' => [
-            'tutors' => [
-                [
-                    'id' => 6,
-                    'name' => 'Arq. Patricia Gómez',
-                    'specialty' => 'Geometría y Trigonometría',
-                    'rating' => 4.5,
-                    'hourly_rate' => 24.00,
-                    'experience_years' => 6,
-                    'confidence' => 0.82,
-                ],
-            ],
-            'message' => 'Tutores especializados en Geometría disponibles. Perfecto para figuras, ángulos y espacios.',
-        ],
-        'fisica' => [
-            'tutors' => [
-                [
-                    'id' => 7,
-                    'name' => 'Dr. Roberto Sánchez',
-                    'specialty' => 'Física Clásica y Moderna',
-                    'rating' => 4.8,
-                    'hourly_rate' => 34.00,
-                    'experience_years' => 11,
-                    'confidence' => 0.92,
-                ],
-            ],
-            'message' => 'Expertos en Física disponibles. Pueden ayudarte con mecánica, termodinámica y electromagnetismo.',
-        ],
-    ];
+    public function __construct(
+        private readonly SearchTutorRepository $tutorRepository
+    ) {}
 
-    /**
-     * Procesa una consulta y retorna recomendaciones de tutores
-     * 
-     * Simula latencia y filtra recomendaciones basadas en palabras clave detectadas.
-     * 
-     * @param string $query Consulta del usuario
-     * @return array<string, mixed> Respuesta con recomendaciones
-     */
     public function getRecommendations(string $query): array
     {
-        // Simular latencia de red (500-1500ms)
-        usleep(random_int(500000, 1500000));
-
         $normalizedQuery = $this->normalize(trim($query));
-
-        // Detectar palabra clave más relevante
         $matchedKeyword = $this->detectKeyword($normalizedQuery);
-
-        if ($matchedKeyword === null) {
-            return $this->getDefaultResponse($normalizedQuery);
-        }
-
-        $recommendation = self::RECOMMENDATIONS[$matchedKeyword] ?? [];
+        $tutors = $this->findMatchingTutors($normalizedQuery, $matchedKeyword);
 
         return [
-            'status' => 'success',
             'keyword_matched' => $matchedKeyword,
-            'message' => $recommendation['message'] ?? 'Te puedo ayudar a encontrar tutores.',
-            'tutors' => $recommendation['tutors'] ?? [],
-            'count' => count($recommendation['tutors'] ?? []),
+            'message' => $this->buildMessage($matchedKeyword, count($tutors)),
+            'tutors' => array_map(
+                fn (TutorProfileDTO $tutor): array => $this->mapTutor($tutor),
+                $tutors
+            ),
+            'count' => count($tutors),
             'timestamp' => date('Y-m-d H:i:s'),
         ];
     }
 
+    public function isValidQuery(string $query): bool
+    {
+        $length = strlen(trim($query));
+        return $length >= 3 && $length <= 500;
+    }
+
+    public function getValidKeywords(): array
+    {
+        return self::VALID_KEYWORDS;
+    }
+
     /**
-     * Detecta la palabra clave más relevante en la consulta
-     * 
-     * @param string $normalizedQuery Consulta normalizada en minúsculas
-     * @return string|null Palabra clave detectada o null si no hay coincidencia
+     * @return array<int, TutorProfileDTO>
      */
+    private function findMatchingTutors(string $normalizedQuery, ?string $matchedKeyword): array
+    {
+        $tutors = $this->tutorRepository->search(new SearchFiltersDTO());
+        $terms = array_values(array_filter(
+            preg_split('/\s+/', $normalizedQuery) ?: [],
+            static fn (string $term): bool => strlen($term) >= 3
+        ));
+
+        return array_values(array_filter(
+            $tutors,
+            function (TutorProfileDTO $tutor) use ($terms, $matchedKeyword): bool {
+                $content = $this->normalize(implode(' ', [
+                    $tutor->user->name,
+                    $tutor->headline,
+                    $tutor->bio,
+                    implode(' ', $tutor->subjects),
+                ]));
+
+                if ($matchedKeyword !== null && str_contains($content, $matchedKeyword)) {
+                    return true;
+                }
+
+                foreach ($terms as $term) {
+                    if (str_contains($content, $term)) {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+        ));
+    }
+
     private function detectKeyword(string $normalizedQuery): ?string
     {
         foreach (self::VALID_KEYWORDS as $keyword) {
-            if (stripos($normalizedQuery, $keyword) !== false) {
-                return $keyword;
+            if (str_contains($normalizedQuery, $this->normalize($keyword))) {
+                return $this->normalize($keyword);
             }
-
         }
 
         return null;
     }
 
-    private function normalize(string $value): string
+    private function buildMessage(?string $keyword, int $count): string
     {
-        $transliterated = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
-        $value = $transliterated === false ? $value : $transliterated;
-        return strtr(strtolower($value), [
-            'á' => 'a', 'é' => 'e', 'í' => 'i', 'ó' => 'o', 'ú' => 'u',
-            'ñ' => 'n',
-            'Á' => 'a', 'É' => 'e', 'Í' => 'i', 'Ó' => 'o', 'Ú' => 'u',
-            'Ñ' => 'n',
-        ]);
+        if ($count === 0) {
+            return 'No encontré tutores que coincidan con tu búsqueda. Prueba con otra materia o habilidad.';
+        }
+
+        if ($keyword !== null) {
+            return sprintf('Encontré %d tutor%s relacionado%s con %s en nuestro catálogo.',
+                $count,
+                $count === 1 ? '' : 'es',
+                $count === 1 ? '' : 's',
+                ucfirst($keyword)
+            );
+        }
+
+        return sprintf('Encontré %d tutor%s que coinciden con tu búsqueda.',
+            $count,
+            $count === 1 ? '' : 'es'
+        );
     }
 
     /**
-     * Retorna una respuesta por defecto cuando no se detecta palabra clave
-     * 
-     * @param string $query Consulta original
-     * @return array<string, mixed> Respuesta genérica
+     * @return array<string, mixed>
      */
-    private function getDefaultResponse(string $query): array
+    private function mapTutor(TutorProfileDTO $tutor): array
     {
         return [
-            'status' => 'success',
-            'keyword_matched' => null,
-            'message' => 'Tu consulta no coincide con nuestras especialidades. '
-                . 'Intenta preguntar por: cálculo, programación, algebra, geometria o fisica.',
-            'tutors' => [],
-            'count' => 0,
-            'timestamp' => date('Y-m-d H:i:s'),
+            'id' => $tutor->id,
+            'name' => $tutor->user->name,
+            'specialty' => $tutor->headline,
+            'rating' => $tutor->ratingAvg,
+            'hourly_rate' => $tutor->hourlyRate,
+            'city' => $tutor->city,
+            'modality' => $tutor->modality,
+            'subjects' => $tutor->subjects,
         ];
     }
 
-    /**
-     * Valida si una consulta es válida
-     * 
-     * @param string $query
-     * @return bool
-     */
-    public function isValidQuery(string $query): bool
+    private function normalize(string $value): string
     {
-        $trimmed = trim($query);
-        return !empty($trimmed) && strlen($trimmed) >= 3 && strlen($trimmed) <= 500;
-    }
-
-    /**
-     * Retorna la lista de palabras clave válidas
-     * 
-     * @return array<string>
-     */
-    public function getValidKeywords(): array
-    {
-        return self::VALID_KEYWORDS;
+        $transliterated = iconv('UTF-8', 'ASCII//TRANSLIT//IGNORE', $value);
+        return strtolower($transliterated === false ? $value : $transliterated);
     }
 }

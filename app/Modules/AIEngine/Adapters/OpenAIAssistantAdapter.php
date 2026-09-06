@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Modules\AIEngine\Adapters;
 
 use App\Modules\AIEngine\Contracts\AIAssistantInterface;
+use App\Modules\SearchReputation\DTOs\SearchFiltersDTO;
+use App\Modules\SearchReputation\Repositories\SearchTutorRepository;
+use App\Shared\DTOs\TutorProfileDTO;
 use RuntimeException;
 
 final class OpenAIAssistantAdapter implements AIAssistantInterface
@@ -14,7 +17,8 @@ final class OpenAIAssistantAdapter implements AIAssistantInterface
     public function __construct(
         private readonly string $apiKey,
         private readonly string $model = 'gpt-4o-mini',
-        private readonly int $timeoutSeconds = 30
+        private readonly int $timeoutSeconds = 30,
+        private readonly ?SearchTutorRepository $tutorRepository = null
     ) {
         if ($this->apiKey === '') {
             throw new RuntimeException('OPENAI_API_KEY no está configurada.');
@@ -84,12 +88,27 @@ final class OpenAIAssistantAdapter implements AIAssistantInterface
             throw new RuntimeException('OpenAI no devolvió contenido para la consulta.');
         }
 
+        $tutors = $this->tutorRepository?->search(
+            new SearchFiltersDTO(query: trim($query))
+        ) ?? [];
+
         return [
-            'status' => 'success',
             'keyword_matched' => null,
             'message' => trim($message),
-            'tutors' => [],
-            'count' => 0,
+            'tutors' => array_map(
+                fn (TutorProfileDTO $tutor): array => [
+                    'id' => $tutor->id,
+                    'name' => $tutor->user->name,
+                    'specialty' => $tutor->headline,
+                    'rating' => $tutor->ratingAvg,
+                    'hourly_rate' => $tutor->hourlyRate,
+                    'city' => $tutor->city,
+                    'modality' => $tutor->modality,
+                    'subjects' => $tutor->subjects,
+                ],
+                $tutors
+            ),
+            'count' => count($tutors),
             'timestamp' => date('Y-m-d H:i:s'),
         ];
     }

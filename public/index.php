@@ -75,9 +75,11 @@ $aiProvider = strtolower((string) (getenv('AI_PROVIDER') ?: 'mock'));
 $aiAdapter = $aiProvider === 'openai'
     ? new OpenAIAssistantAdapter(
         (string) (getenv('OPENAI_API_KEY') ?: ''),
-        (string) (getenv('OPENAI_MODEL') ?: 'gpt-4o-mini')
+        (string) (getenv('OPENAI_MODEL') ?: 'gpt-4o-mini'),
+        30,
+        $tutorRepository
     )
-    : new MockAIAssistantAdapter();
+    : new MockAIAssistantAdapter($tutorRepository);
 $aiController = new AIController($aiAdapter);
 
 // 5. Inicializar Router
