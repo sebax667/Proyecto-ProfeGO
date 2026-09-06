@@ -1,41 +1,37 @@
 <?php
 
 declare(strict_types=1);
-
-$redirect = trim((string) ($_GET['redirect'] ?? '/dashboard'));
-if ($redirect === '' || !str_starts_with($redirect, '/') || str_starts_with($redirect, '//')) {
-    $redirect = '/dashboard';
-}
 ?>
 <!DOCTYPE html>
 <html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Iniciar sesión | ProfeGo</title>
+    <title>Crear cuenta | ProfeGo</title>
     <link rel="stylesheet" href="/assets/css/app.css">
 </head>
 <body class="profego-auth-page">
     <main class="profego-auth-card">
         <a href="/catalog" class="profego-brand" aria-label="Ir al catálogo de ProfeGo">ProfeGo</a>
-        <h1 class="profego-page-title">Inicia sesión</h1>
-        <p class="profego-page-lead">Accede a tu espacio de aprendizaje.</p>
-        <form id="login-form" action="/api/auth/login" method="post" class="profego-auth-form">
-            <input type="hidden" name="redirect" value="<?= htmlspecialchars($redirect, ENT_QUOTES, 'UTF-8') ?>">
-            <label for="login-email">Correo electrónico</label>
-            <input id="login-email" name="email" type="email" required autocomplete="email">
-            <label for="login-password">Contraseña</label>
-            <input id="login-password" name="password" type="password" required autocomplete="current-password">
-            <button type="submit" class="profego-button">Iniciar sesión</button>
-            <p id="login-error" class="profego-form-error" role="alert" hidden></p>
+        <h1 class="profego-page-title">Crear cuenta</h1>
+        <p class="profego-page-lead">Únete a ProfeGo como estudiante.</p>
+        <form id="register-form" action="/api/auth/register" method="post" class="profego-auth-form">
+            <label for="register-name">Nombre</label>
+            <input id="register-name" name="name" required autocomplete="name">
+            <label for="register-email">Correo electrónico</label>
+            <input id="register-email" name="email" type="email" required autocomplete="email">
+            <label for="register-password">Contraseña</label>
+            <input id="register-password" name="password" type="password" required minlength="8" autocomplete="new-password">
+            <button type="submit" class="profego-button">Registrarme</button>
+            <p id="register-error" class="profego-form-error" role="alert" hidden></p>
         </form>
-        <p class="profego-auth-link">¿No tienes cuenta? <a href="/register">Regístrate</a></p>
+        <p class="profego-auth-link">¿Ya tienes cuenta? <a href="/login">Inicia sesión</a></p>
     </main>
     <script>
-        document.getElementById('login-form').addEventListener('submit', async (event) => {
+        document.getElementById('register-form').addEventListener('submit', async (event) => {
             event.preventDefault();
             const form = event.currentTarget;
-            const error = document.getElementById('login-error');
+            const error = document.getElementById('register-error');
             const button = form.querySelector('button[type="submit"]');
             button.disabled = true;
             error.hidden = true;
@@ -46,6 +42,7 @@ if ($redirect === '' || !str_starts_with($redirect, '/') || str_starts_with($red
                     credentials: 'include',
                     headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                     body: JSON.stringify({
+                        name: form.elements.name.value,
                         email: form.elements.email.value,
                         password: form.elements.password.value
                     })
@@ -53,10 +50,10 @@ if ($redirect === '' || !str_starts_with($redirect, '/') || str_starts_with($red
                 const payload = await response.json();
 
                 if (!response.ok || payload.status !== 'success') {
-                    throw new Error(payload.message || 'No se pudo iniciar sesión.');
+                    throw new Error(payload.message || 'No se pudo crear la cuenta.');
                 }
 
-                window.location.assign(form.elements.redirect.value);
+                window.location.assign('/login');
             } catch (requestError) {
                 error.textContent = requestError.message;
                 error.hidden = false;

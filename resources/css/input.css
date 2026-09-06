@@ -149,6 +149,21 @@
     padding: 0.75rem;
 }
 
+.profego-form-error {
+    color: #b42318;
+    font-size: 0.875rem;
+}
+
+.profego-auth-link {
+    color: #757575;
+    margin-top: 1rem;
+}
+
+.profego-auth-link a {
+    color: #304485;
+    font-weight: 600;
+}
+
 .profego-navbar {
     align-items: center;
     background: #ffffff;

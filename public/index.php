@@ -105,6 +105,19 @@ $router->get('/login', static function (): string {
     return (string) ob_get_clean();
 });
 
+$router->get('/register', static function (): string {
+    $viewPath = __DIR__ . '/../resources/views/modules/auth/register.php';
+
+    if (!is_file($viewPath)) {
+        http_response_code(404);
+        return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>404 | ProfeGo</title></head><body><h1>404</h1><p>La vista de registro no está disponible.</p></body></html>';
+    }
+
+    ob_start();
+    require $viewPath;
+    return (string) ob_get_clean();
+});
+
 $renderModule = static function (string $view, string $title): string {
     $viewPath = __DIR__ . '/../resources/views/modules/' . $view;
 
