@@ -145,5 +145,7 @@ $hasFilters = !empty($_GET);
     </div>
 </div>
 
+<?php include __DIR__ . '/../../components/ai-widget.php'; ?>
+
 </body>
 </html>
