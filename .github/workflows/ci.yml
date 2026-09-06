@@ -2,12 +2,12 @@ name: ProfeGo CI
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
-    branches: [main]
+    branches: [ main ]
 
 jobs:
-  php:
+  build:
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -21,28 +21,28 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php-version }}
-          extensions: pdo_sqlite, curl, mbstring
+          extensions: sqlite3, pdo_sqlite, mbstring
           coverage: none
 
-      - name: Install Composer dependencies
-        run: composer install --no-interaction --prefer-dist --optimize-autoloader
-
-      - name: Validate PHP syntax
-        shell: bash
+      - name: Validate PHP Syntax
         run: |
-          set -euo pipefail
           find app public resources tests database -type f -name '*.php' -print0 |
             xargs -0 -n1 php -l
 
-      - name: Validate deployment scripts
-        shell: bash
+      - name: Validate Shell Scripts Syntax
         run: |
-          set -euo pipefail
-          bash -n deploy/smoke_test.sh
-          bash -n deploy/setup_production.sh
+          bash -n deploy/*.sh
 
-      - name: Run integration test
+      - name: Install Dependencies
+        run: composer install --no-dev --prefer-dist --no-interaction
+
+      - name: Prepare Database Directory
+        run: |
+          mkdir -p database
+          chmod 750 database
+
+      - name: Run Booking Integration Tests
         run: php tests/booking_integration.php
 
-      - name: Run AI integration test
+      - name: Run AI Integration Tests
         run: php tests/ai_integration.php
