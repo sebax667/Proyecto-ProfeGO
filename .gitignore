@@ -3,6 +3,7 @@
 !.env.example
 *.log
 vendor/
+node_modules/
 *.sqlite
 *.sqlite3
 *.db

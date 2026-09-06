@@ -1,0 +1,12 @@
+{
+  "name": "profego-frontend",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "build:css": "tailwindcss -i ./resources/css/input.css -o ./public/assets/css/app.css --minify",
+    "watch:css": "tailwindcss -i ./resources/css/input.css -o ./public/assets/css/app.css --watch"
+  },
+  "devDependencies": {
+    "tailwindcss": "3.4.17"
+  }
+}
