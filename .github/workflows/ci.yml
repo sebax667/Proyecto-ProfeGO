@@ -31,7 +31,10 @@ jobs:
 
       - name: Validate Shell Scripts Syntax
         run: |
-          bash -n deploy/*.sh
+          set -euo pipefail
+          for script in deploy/*.sh; do
+            bash -n "$script"
+          done
 
       - name: Install Dependencies
         run: composer install --no-dev --prefer-dist --no-interaction
