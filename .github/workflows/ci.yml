@@ -24,6 +24,9 @@ jobs:
           extensions: pdo_sqlite, curl, mbstring
           coverage: none
 
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --optimize-autoloader
+
       - name: Validate PHP syntax
         shell: bash
         run: |
@@ -33,3 +36,6 @@ jobs:
 
       - name: Run integration test
         run: php tests/booking_integration.php
+
+      - name: Run AI integration test
+        run: php tests/ai_integration.php
