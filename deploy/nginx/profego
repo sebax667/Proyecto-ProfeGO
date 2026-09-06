@@ -2,7 +2,8 @@ server {
     listen 80;
     listen [::]:80;
 
-    server_name profego.example.com;
+    # Bootstrap HTTP virtual host. Replace "_" with the production domain.
+    server_name _;
     root /var/www/profego/public;
     index index.php;
 
@@ -35,3 +36,35 @@ server {
         return 404;
     }
 }
+
+# After installing an SSL certificate, replace the HTTP server above with a
+# redirect and enable this HTTPS server. Certbot can generate these directives
+# automatically with: sudo certbot --nginx -d tu-dominio.com
+#
+# server {
+#     listen 80;
+#     listen [::]:80;
+#     server_name tu-dominio.com www.tu-dominio.com;
+#     return 301 https://$host$request_uri;
+# }
+#
+# server {
+#     listen 443 ssl http2;
+#     listen [::]:443 ssl http2;
+#     server_name tu-dominio.com www.tu-dominio.com;
+#
+#     ssl_certificate /etc/letsencrypt/live/tu-dominio.com/fullchain.pem;
+#     ssl_certificate_key /etc/letsencrypt/live/tu-dominio.com/privkey.pem;
+#     root /var/www/profego/public;
+#     index index.php;
+#
+#     location / {
+#         try_files $uri $uri/ /index.php?$query_string;
+#     }
+#
+#     location ~ \.php$ {
+#         try_files $uri =404;
+#         include snippets/fastcgi-php.conf;
+#         fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+#     }
+# }

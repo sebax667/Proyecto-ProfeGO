@@ -26,6 +26,10 @@ fi
 
 install -d -o "${APP_USER}" -g "${APP_GROUP}" -m 0750 "${DATABASE_DIR}"
 
+if [ ! -f "${DATABASE_FILE}" ]; then
+    install -o "${APP_USER}" -g "${APP_GROUP}" -m 0660 /dev/null "${DATABASE_FILE}"
+fi
+
 if [ ! -f "${ENV_FILE}" ]; then
     install -o "${APP_USER}" -g "${APP_GROUP}" -m 0640 /dev/null "${ENV_FILE}"
     cat > "${ENV_FILE}" <<'EOF'
@@ -40,16 +44,16 @@ fi
 chown "${APP_USER}:${APP_GROUP}" "${ENV_FILE}"
 chmod 0640 "${ENV_FILE}"
 
-if [ -f "${DATABASE_FILE}" ]; then
-    chown "${APP_USER}:${APP_GROUP}" "${DATABASE_FILE}"
-    chmod 0660 "${DATABASE_FILE}"
-fi
+chown "${APP_USER}:${APP_GROUP}" "${DATABASE_FILE}"
+chmod 0660 "${DATABASE_FILE}"
 
 find "${APP_DIR}" -type d -exec chmod 0750 {} \;
 find "${APP_DIR}" -type f -exec chmod 0640 {} \;
 find "${APP_DIR}/public" -type f -exec chmod 0755 {} \;
 chmod 0750 "${APP_DIR}/public"
 chmod 0750 "${DATABASE_DIR}"
+chmod 0640 "${ENV_FILE}"
+chmod 0660 "${DATABASE_FILE}"
 
 if [ ! -f "${APP_DIR}/composer.json" ]; then
     echo "No existe composer.json en ${APP_DIR}." >&2

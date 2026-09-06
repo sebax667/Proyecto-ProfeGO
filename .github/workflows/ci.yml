@@ -34,6 +34,13 @@ jobs:
           find app public resources tests database -type f -name '*.php' -print0 |
             xargs -0 -n1 php -l
 
+      - name: Validate deployment scripts
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n deploy/smoke_test.sh
+          bash -n deploy/setup_production.sh
+
       - name: Run integration test
         run: php tests/booking_integration.php
 
