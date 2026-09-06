@@ -40,6 +40,18 @@ class AuthMiddleware
 
     private function denyAccess(string $message): void
     {
+        $path = (string) (parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?? '/');
+        $acceptsJson = str_contains(
+            strtolower((string) ($_SERVER['HTTP_ACCEPT'] ?? '')),
+            'application/json'
+        );
+
+        if (!str_starts_with($path, '/api/') && !$acceptsJson) {
+            $redirect = '/login?redirect=' . rawurlencode($path);
+            header('Location: ' . $redirect, true, 302);
+            return;
+        }
+
         http_response_code(401);
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode([

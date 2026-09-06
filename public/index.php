@@ -92,6 +92,19 @@ $router->post('/api/auth/login', [AuthController::class, 'handleLogin']);
 // Pasamos el objeto $catalogController YA INSTANCIADO dentro del array:
 $router->get('/catalog', [$catalogController, 'index']);
 
+$router->get('/login', static function (): string {
+    $viewPath = __DIR__ . '/../resources/views/modules/auth/login.php';
+
+    if (!is_file($viewPath)) {
+        http_response_code(404);
+        return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>404 | ProfeGo</title></head><body><h1>404</h1><p>La vista de inicio de sesión no está disponible.</p></body></html>';
+    }
+
+    ob_start();
+    require $viewPath;
+    return (string) ob_get_clean();
+});
+
 $renderModule = static function (string $view, string $title): string {
     $viewPath = __DIR__ . '/../resources/views/modules/' . $view;
 
