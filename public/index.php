@@ -92,6 +92,36 @@ $router->post('/api/auth/login', [AuthController::class, 'handleLogin']);
 // Pasamos el objeto $catalogController YA INSTANCIADO dentro del array:
 $router->get('/catalog', [$catalogController, 'index']);
 
+$renderModule = static function (string $view, string $title): string {
+    $viewPath = __DIR__ . '/../resources/views/modules/' . $view;
+
+    if (!is_file($viewPath)) {
+        http_response_code(404);
+        return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>404 | ProfeGo</title></head><body><h1>404</h1><p>La vista solicitada no está disponible.</p></body></html>';
+    }
+
+    ob_start();
+    require $viewPath;
+    return (string) ob_get_clean();
+};
+
+$router->get('/dashboard', static function (array $request, ?array $authUser) use ($renderModule): string {
+    $role = (string) ($authUser['role'] ?? 'student');
+    $view = $role === 'tutor' || $role === 'admin'
+        ? 'dashboard/teacher.php'
+        : 'dashboard/student.php';
+
+    return $renderModule($view, 'Dashboard | ProfeGo');
+}, [AuthMiddleware::class]);
+
+$router->get('/chat', static function () use ($renderModule): string {
+    return $renderModule('chat/index.php', 'Chat | ProfeGo');
+});
+
+$router->get('/settings', static function () use ($renderModule): string {
+    return $renderModule('settings/index.php', 'Configuración | ProfeGo');
+}, [AuthMiddleware::class]);
+
 // --- Rutas Protegidas ---
 $router->post('/api/bookings', [$bookingController, 'store'], [
     AuthMiddleware::class,
