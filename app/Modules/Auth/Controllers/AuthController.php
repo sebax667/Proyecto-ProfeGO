@@ -30,7 +30,7 @@ class AuthController
             ];
         }
 
-        $role = UserRole::tryFrom($request['role'] ?? '') ?? UserRole::STUDENT;
+        $role = UserRole::STUDENT;
 
         $dto = new RegisterUserDTO(
             name: $name,

@@ -21,7 +21,7 @@ jobs:
         uses: shivammathur/setup-php@v2
         with:
           php-version: ${{ matrix.php-version }}
-          extensions: sqlite3, pdo_sqlite, mbstring
+          extensions: sqlite3, pdo_sqlite, curl, mbstring
           coverage: none
 
       - name: Validate PHP Syntax

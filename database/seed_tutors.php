@@ -78,5 +78,6 @@ try {
     echo "¡Seed ejecutado con éxito! Se han insertado 3 tutores de prueba.\n";
 
 } catch (PDOException $e) {
-    echo "Error en la base de datos: " . $e->getMessage() . "\n";
+    fwrite(STDERR, "Error en la base de datos: " . $e->getMessage() . PHP_EOL);
+    exit(1);
 }

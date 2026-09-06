@@ -32,6 +32,10 @@ fi
 
 if [ ! -f "${ENV_FILE}" ]; then
     install -o "${APP_USER}" -g "${APP_GROUP}" -m 0640 /dev/null "${ENV_FILE}"
+    if ! command -v openssl >/dev/null 2>&1; then
+        echo "OpenSSL es necesario para generar JWT_SECRET." >&2
+        exit 1
+    fi
     cat > "${ENV_FILE}" <<'EOF'
 APP_ENV=production
 APP_DEBUG=false
@@ -39,6 +43,13 @@ AI_PROVIDER=mock
 OPENAI_API_KEY=
 OPENAI_MODEL=gpt-4o-mini
 EOF
+    printf 'JWT_SECRET=%s\n' "$(openssl rand -hex 32)" >> "${ENV_FILE}"
+elif ! grep -q '^JWT_SECRET=' "${ENV_FILE}"; then
+    if ! command -v openssl >/dev/null 2>&1; then
+        echo "OpenSSL es necesario para generar JWT_SECRET." >&2
+        exit 1
+    fi
+    printf 'JWT_SECRET=%s\n' "$(openssl rand -hex 32)" >> "${ENV_FILE}"
 fi
 
 chown "${APP_USER}:${APP_GROUP}" "${ENV_FILE}"

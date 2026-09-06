@@ -6,7 +6,16 @@ namespace App\Shared\Security;
 
 class JwtService
 {
-    private string $secretKey = 'CLAVE_SECRETA_SISTEMA_APP_2026_ESTRICTO';
+    private readonly string $secretKey;
+
+    public function __construct(?string $secretKey = null)
+    {
+        $this->secretKey = $secretKey ?? (string) getenv('JWT_SECRET');
+
+        if ($this->secretKey === '') {
+            throw new \RuntimeException('JWT_SECRET no está configurado.');
+        }
+    }
 
     public function generateToken(array $payload, int $expirySeconds = 3600): string
     {
