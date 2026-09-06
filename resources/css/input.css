@@ -21,3 +21,139 @@
     text-decoration: underline;
     text-underline-offset: 0.2em;
 }
+
+.profego-app {
+    background: #eef2fe;
+    color: #1e1e1e;
+    font-family: Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.profego-shell {
+    display: flex;
+    min-height: 100vh;
+}
+
+.profego-sidebar {
+    background: #2d303b;
+    color: #ffffff;
+    flex: 0 0 240px;
+    padding: 2rem 1rem;
+}
+
+.profego-sidebar .profego-brand {
+    color: #ffffff;
+}
+
+.profego-sidebar__brand {
+    padding: 0 0.75rem 2.5rem;
+}
+
+.profego-sidebar__nav {
+    display: grid;
+    gap: 0.5rem;
+}
+
+.profego-sidebar__link {
+    align-items: center;
+    border-radius: 0.75rem;
+    color: #b3b3b3;
+    display: flex;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    text-decoration: none;
+    transition: background-color 150ms ease, color 150ms ease;
+}
+
+.profego-sidebar__link:hover,
+.profego-sidebar__link:focus-visible {
+    background: #304485;
+    color: #ffffff;
+}
+
+.profego-main {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.profego-content {
+    flex: 1;
+    padding: 2rem;
+}
+
+.profego-navbar {
+    align-items: center;
+    background: #ffffff;
+    border-bottom: 1px solid #f3f3f3;
+    display: flex;
+    justify-content: space-between;
+    padding: 1rem 2rem;
+}
+
+.profego-navbar__eyebrow {
+    color: #828282;
+    font-size: 0.75rem;
+    margin: 0;
+}
+
+.profego-navbar__title {
+    color: #304485;
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin: 0.25rem 0 0;
+}
+
+.profego-navbar__actions {
+    align-items: center;
+    display: flex;
+    gap: 0.75rem;
+}
+
+.profego-icon-button,
+.profego-profile {
+    align-items: center;
+    display: inline-flex;
+    justify-content: center;
+}
+
+.profego-icon-button {
+    background: #f5f5f5;
+    border-radius: 9999px;
+    color: #304485;
+    height: 2.5rem;
+    width: 2.5rem;
+}
+
+.profego-profile {
+    background: #304485;
+    border-radius: 9999px;
+    color: #ffffff;
+    font-size: 0.75rem;
+    height: 2.5rem;
+    width: 2.5rem;
+}
+
+@media (max-width: 768px) {
+    .profego-shell {
+        display: block;
+    }
+
+    .profego-sidebar {
+        padding: 1rem;
+    }
+
+    .profego-sidebar__brand {
+        padding-bottom: 1rem;
+    }
+
+    .profego-sidebar__nav {
+        display: flex;
+        flex-wrap: wrap;
+    }
+
+    .profego-content,
+    .profego-navbar {
+        padding: 1rem;
+    }
+}
