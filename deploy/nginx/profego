@@ -1,0 +1,37 @@
+server {
+    listen 80;
+    listen [::]:80;
+
+    server_name profego.example.com;
+    root /var/www/profego/public;
+    index index.php;
+
+    client_max_body_size 2m;
+
+    access_log /var/log/nginx/profego_access.log;
+    error_log /var/log/nginx/profego_error.log warn;
+
+    location / {
+        try_files $uri $uri/ /index.php?$query_string;
+    }
+
+    location ~ \.php$ {
+        try_files $uri =404;
+        include snippets/fastcgi-php.conf;
+        fastcgi_pass unix:/run/php/php8.3-fpm.sock;
+    }
+
+    location ~ /\.(?!well-known) {
+        deny all;
+    }
+
+    location ~* \.(?:env|sqlite|sqlite3|db|log|ini|bak|sql)$ {
+        deny all;
+        return 404;
+    }
+
+    location ~* /(app|database|resources|tests|vendor)/ {
+        deny all;
+        return 404;
+    }
+}

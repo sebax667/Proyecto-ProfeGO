@@ -1,0 +1,16 @@
+.env
+.env.*
+!.env.example
+*.log
+vendor/
+*.sqlite
+*.sqlite3
+*.db
+.phpunit.result.cache
+.idea/
+.vscode/
+login.json
+register.json
+student_login.json
+student_register.json
+*.lnk
