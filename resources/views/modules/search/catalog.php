@@ -15,103 +15,143 @@ $hasFilters = !empty($_GET);
     <title>Catálogo de Tutores | ProfeGo</title>
     <link rel="stylesheet" href="/assets/css/app.css">
 </head>
-<body class="bg-gray-50 min-h-screen font-sans text-gray-800">
+<body class="bg-slate-100 text-slate-800 antialiased">
+    <?php include __DIR__ . '/../../partials/navigation.php'; ?>
 
-<?php include __DIR__ . '/../../partials/navigation.php'; ?>
+    <main class="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <section class="mb-8 rounded-[32px] border border-slate-200 bg-gradient-to-r from-indigo-600 via-indigo-500 to-blue-500 p-6 text-white shadow-[0_28px_64px_-38px_rgba(79,70,229,0.9)] sm:p-8">
+            <div class="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                    <p class="text-xs font-semibold uppercase tracking-[0.22em] text-indigo-100">
+                        Encuentra tu tutor ideal
+                    </p>
+                    <h1 class="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
+                        Aprende con personas que te acompañen de verdad.
+                    </h1>
+                </div>
 
-<div class="py-8">
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        
-        <!-- Encabezado -->
-        <div class="mb-8">
-            <h1 class="text-3xl font-extrabold text-gray-900 tracking-tight">Encuentra a tu Tutor Ideal</h1>
-            <p class="mt-2 text-base text-gray-600">Explora perfiles, filtra por tus necesidades y conecta con los mejores profesionales.</p>
-        </div>
+                <div class="flex flex-wrap gap-2">
+                    <span class="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-sm font-medium">
+                        +1200 tutores
+                    </span>
+                    <span class="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-sm font-medium">
+                        4.9 promedio
+                    </span>
+                    <span class="rounded-full border border-white/20 bg-white/10 px-3 py-1.5 text-sm font-medium">
+                        Respuestas rápidas
+                    </span>
+                </div>
+            </div>
+        </section>
 
-        <div class="flex flex-col md:flex-row gap-8">
-            
-            <!-- BARRA LATERAL (Filtros) -->
-            <aside class="w-full md:w-1/4">
-                <form action="/catalog" method="GET" class="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 md:sticky md:top-6">
-                    <h2 class="font-bold text-gray-900 mb-5 flex items-center gap-2">
-                        <svg width="20" height="20" class="w-5 h-5 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
-                        </svg>
-                        Filtros
-                    </h2>
-
-                    <!-- Búsqueda -->
-                    <div class="mb-5">
-                        <label for="q" class="block text-sm font-medium text-gray-700 mb-1">Palabra clave</label>
-                        <input type="text" name="q" id="q" value="<?= htmlspecialchars($q) ?>" placeholder="Ej. Álgebra, Python..." 
-                               class="w-full rounded-lg border border-gray-300 p-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
+        <div class="flex flex-col gap-8 lg:flex-row">
+            <aside class="w-full lg:w-80">
+                <form action="/catalog" method="GET" class="sticky top-6 rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_22px_48px_-32px_rgba(15,23,42,0.45)]">
+                    <div class="mb-5 flex items-center gap-2">
+                        <span class="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">⚙</span>
+                        <h2 class="text-lg font-black text-slate-900">Filtros</h2>
                     </div>
 
-                    <!-- Modalidad -->
-                    <div class="mb-5">
-                        <label for="modality" class="block text-sm font-medium text-gray-700 mb-1">Modalidad</label>
-                        <select name="modality" id="modality" class="w-full rounded-lg border border-gray-300 p-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
-                            <option value="">Cualquiera</option>
-                            <option value="virtual" <?= $modality === 'virtual' ? 'selected' : '' ?>>Virtual</option>
-                            <option value="presential" <?= $modality === 'presential' ? 'selected' : '' ?>>Presencial</option>
-                            <option value="hybrid" <?= $modality === 'hybrid' ? 'selected' : '' ?>>Híbrido</option>
-                        </select>
-                    </div>
-
-                    <!-- Precio -->
-                    <div class="mb-5">
-                        <label class="block text-sm font-medium text-gray-700 mb-1">Precio por hora (COP)</label>
-                        <div class="flex items-center gap-2">
-                            <input type="number" name="min_price" placeholder="Min" value="<?= htmlspecialchars($minPrice) ?>" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
-                            <span class="text-gray-400">-</span>
-                            <input type="number" name="max_price" placeholder="Max" value="<?= htmlspecialchars($maxPrice) ?>" class="w-full border border-gray-300 rounded-lg p-2 text-sm">
+                    <div class="space-y-5">
+                        <div>
+                            <label for="q" class="profego-label">Palabra clave</label>
+                            <input
+                                type="text"
+                                name="q"
+                                id="q"
+                                value="<?= htmlspecialchars($q) ?>"
+                                placeholder="Ej. Álgebra, Python, programación..."
+                                class="profego-input"
+                            >
                         </div>
-                    </div>
 
-                    <!-- Ordenar -->
-                    <div class="mb-7">
-                        <label for="sort_by" class="block text-sm font-medium text-gray-700 mb-1">Ordenar por</label>
-                        <select name="sort_by" id="sort_by" class="w-full rounded-lg border border-gray-300 p-2 text-sm focus:ring-indigo-500 focus:border-indigo-500">
-                            <option value="rating" <?= $sortBy === 'rating' ? 'selected' : '' ?>>Mejor calificados</option>
-                            <option value="price_asc" <?= $sortBy === 'price_asc' ? 'selected' : '' ?>>Menor precio</option>
-                            <option value="price_desc" <?= $sortBy === 'price_desc' ? 'selected' : '' ?>>Mayor precio</option>
-                        </select>
-                    </div>
+                        <div>
+                            <label for="modality" class="profego-label">Modalidad</label>
+                            <select name="modality" id="modality" class="profego-input">
+                                <option value="">Cualquiera</option>
+                                <option value="virtual" <?= $modality === 'virtual' ? 'selected' : '' ?>>Virtual</option>
+                                <option value="presential" <?= $modality === 'presential' ? 'selected' : '' ?>>Presencial</option>
+                                <option value="hybrid" <?= $modality === 'hybrid' ? 'selected' : '' ?>>Híbrido</option>
+                            </select>
+                        </div>
 
-                    <button type="submit" class="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-sm font-medium transition-all">
-                        Aplicar Filtros
-                    </button>
-                    
-                    <?php if ($hasFilters): ?>
-                        <a href="/catalog" class="mt-3 block text-center w-full py-2.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 rounded-xl text-sm font-medium transition-all">
-                            Limpiar búsqueda
-                        </a>
-                    <?php endif; ?>
+                        <div>
+                            <label class="profego-label">Precio por hora (COP)</label>
+                            <div class="grid grid-cols-2 gap-2">
+                                <input
+                                    type="number"
+                                    name="min_price"
+                                    placeholder="Min"
+                                    value="<?= htmlspecialchars($minPrice) ?>"
+                                    class="profego-input"
+                                >
+                                <input
+                                    type="number"
+                                    name="max_price"
+                                    placeholder="Max"
+                                    value="<?= htmlspecialchars($maxPrice) ?>"
+                                    class="profego-input"
+                                >
+                            </div>
+                        </div>
+
+                        <div>
+                            <label for="sort_by" class="profego-label">Ordenar por</label>
+                            <select name="sort_by" id="sort_by" class="profego-input">
+                                <option value="rating" <?= $sortBy === 'rating' ? 'selected' : '' ?>>Mejor calificados</option>
+                                <option value="price_asc" <?= $sortBy === 'price_asc' ? 'selected' : '' ?>>Menor precio</option>
+                                <option value="price_desc" <?= $sortBy === 'price_desc' ? 'selected' : '' ?>>Mayor precio</option>
+                            </select>
+                        </div>
+
+                        <button type="submit" class="profego-button w-full">
+                            Aplicar filtros
+                        </button>
+
+                        <?php if ($hasFilters): ?>
+                            <a href="/catalog" class="profego-button-secondary w-full">
+                                Limpiar búsqueda
+                            </a>
+                        <?php endif; ?>
+                    </div>
                 </form>
             </aside>
 
-            <!-- ZONA PRINCIPAL (Grid de Resultados) -->
-            <main class="w-full md:w-3/4">
+            <main class="flex-1">
                 <?php if (!empty($tutors)): ?>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                         <?php foreach ($tutors as $tutor): ?>
-                            <div class="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm hover:shadow-md transition-all flex flex-col justify-between">
+                            <article class="group flex h-full flex-col justify-between rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_22px_48px_-32px_rgba(15,23,42,0.45)] transition hover:-translate-y-0.5 hover:shadow-[0_28px_60px_-30px_rgba(79,70,229,0.35)]">
                                 <div>
-                                    <div class="flex items-center gap-4 mb-4">
-                                        <img src="<?= htmlspecialchars($tutor->user->avatarUrl ?? 'https://ui-avatars.com/api/?name=' . urlencode($tutor->user->name)) ?>" 
-                                             alt="<?= htmlspecialchars($tutor->user->name) ?>" class="w-12 h-12 rounded-full object-cover">
-                                        <div>
-                                            <h3 class="font-bold text-gray-900"><?= htmlspecialchars($tutor->user->name) ?></h3>
-                                            <p class="text-xs text-gray-500"><?= htmlspecialchars($tutor->city ?? 'Remoto') ?></p>
+                                    <div class="flex items-start gap-3">
+                                        <img
+                                            src="<?= htmlspecialchars($tutor->user->avatarUrl ?? 'https://ui-avatars.com/api/?name=' . urlencode($tutor->user->name)) ?>"
+                                            alt="<?= htmlspecialchars($tutor->user->name) ?>"
+                                            class="h-14 w-14 rounded-full object-cover ring-4 ring-indigo-50"
+                                        >
+                                        <div class="min-w-0">
+                                            <h3 class="text-lg font-black text-slate-900">
+                                                <?= htmlspecialchars($tutor->user->name) ?>
+                                            </h3>
+                                            <p class="mt-1 text-sm text-slate-500">
+                                                <?= htmlspecialchars($tutor->city ?? 'Remoto') ?>
+                                            </p>
                                         </div>
                                     </div>
-                                    <h4 class="text-sm font-semibold text-indigo-600 mb-2"><?= htmlspecialchars($tutor->headline) ?></h4>
-                                    <p class="text-xs text-gray-600 mb-4 line-clamp-3"><?= htmlspecialchars($tutor->bio) ?></p>
-                                    
+
+                                    <div class="mt-4">
+                                        <p class="text-sm font-semibold text-indigo-600">
+                                            <?= htmlspecialchars($tutor->headline) ?>
+                                        </p>
+                                        <p class="mt-2 line-clamp-3 text-sm leading-6 text-slate-600">
+                                            <?= htmlspecialchars($tutor->bio) ?>
+                                        </p>
+                                    </div>
+
                                     <?php if (!empty($tutor->subjects)): ?>
-                                        <div class="flex flex-wrap gap-1 mb-4">
+                                        <div class="mt-4 flex flex-wrap gap-2">
                                             <?php foreach ($tutor->subjects as $subject): ?>
-                                                <span class="px-2 py-0.5 bg-indigo-50 text-indigo-700 text-[10px] font-medium rounded-md">
+                                                <span class="rounded-full bg-indigo-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-indigo-700">
                                                     <?= htmlspecialchars($subject) ?>
                                                 </span>
                                             <?php endforeach; ?>
@@ -119,36 +159,50 @@ $hasFilters = !empty($_GET);
                                     <?php endif; ?>
                                 </div>
 
-                                <div class="border-t border-gray-100 pt-4 mt-2 flex items-center justify-between">
-                                    <div>
-                                        <span class="text-xs text-gray-400">Por hora</span>
-                                        <p class="text-base font-bold text-gray-900">$<?= number_format($tutor->hourlyRate, 0, ',', '.') ?></p>
+                                <div class="mt-5 border-t border-slate-200 pt-4">
+                                    <div class="flex items-end justify-between">
+                                        <div>
+                                            <p class="text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                                                Por hora
+                                            </p>
+                                            <p class="mt-1 text-xl font-black text-slate-900">
+                                                $<?= number_format($tutor->hourlyRate, 0, ',', '.') ?>
+                                            </p>
+                                        </div>
+
+                                        <div class="text-right">
+                                            <p class="text-sm font-bold text-amber-500">
+                                                ★ <?= number_format($tutor->ratingAvg, 1) ?>
+                                            </p>
+                                            <p class="text-[11px] text-slate-500">
+                                                (<?= $tutor->reviewsCount ?> reseñas)
+                                            </p>
+                                        </div>
                                     </div>
-                                    <div class="text-right">
-                                        <span class="text-xs font-semibold text-amber-500">★ <?= number_format($tutor->ratingAvg, 1) ?></span>
-                                        <p class="text-[10px] text-gray-400">(<?= $tutor->reviewsCount ?> reseñas)</p>
-                                    </div>
+
+                                    <button type="button" class="profego-button mt-4 w-full">
+                                        Ver perfil
+                                    </button>
                                 </div>
-                            </div>
+                            </article>
                         <?php endforeach; ?>
                     </div>
                 <?php else: ?>
-                    <div class="bg-white rounded-2xl border border-gray-100 p-16 text-center shadow-sm">
-                        <h3 class="text-lg font-semibold text-gray-900">No encontramos coincidencias</h3>
-                        <p class="mt-2 text-sm text-gray-500 max-w-sm mx-auto">No hay tutores que cumplan con los filtros actuales.</p>
-                        <a href="/catalog" class="mt-6 inline-block px-5 py-2.5 bg-indigo-100 text-indigo-700 rounded-xl text-sm font-medium hover:bg-indigo-200 transition-all">
+                    <div class="rounded-[28px] border border-slate-200 bg-white p-16 text-center shadow-[0_22px_48px_-32px_rgba(15,23,42,0.45)]">
+                        <h3 class="text-xl font-black text-slate-900">No encontramos coincidencias</h3>
+                        <p class="mt-3 text-sm text-slate-500">
+                            Prueba con otros filtros o vuelve a ver todos los tutores disponibles.
+                        </p>
+                        <a href="/catalog" class="profego-button mt-6">
                             Ver todos los tutores
                         </a>
                     </div>
                 <?php endif; ?>
             </main>
-
         </div>
-    </div>
-</div>
+    </main>
 
-<?php include __DIR__ . '/../../components/ai-widget.php'; ?>
-<?php include __DIR__ . '/../../partials/footer.php'; ?>
-
+    <?php include __DIR__ . '/../../components/ai-widget.php'; ?>
+    <?php include __DIR__ . '/../../partials/footer.php'; ?>
 </body>
 </html>
