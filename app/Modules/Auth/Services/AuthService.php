@@ -21,7 +21,9 @@ class AuthService
 
     public function register(RegisterUserDTO $dto): array
     {
-        if ($this->userRepository->findByEmail($dto->email)) {
+        $email = strtolower(trim($dto->email));
+
+        if ($this->userRepository->findByEmail($email)) {
             return [
                 'status' => 'error',
                 'message' => 'El correo electrónico ya se encuentra registrado.'
@@ -32,12 +34,12 @@ class AuthService
 
         $created = $this->userRepository->create([
             'name' => $dto->name,
-            'email' => $dto->email,
+            'email' => $email,
             'password' => $hashedPassword,
-            'role' => $dto->role->value
+            'role' => $dto->role->value,
         ]);
 
-        if (!$created) {
+        if ($created <= 0) {
             return [
                 'status' => 'error',
                 'message' => 'No se pudo guardar el usuario.'
@@ -50,18 +52,28 @@ class AuthService
             'message' => 'Usuario guardado en base de datos correctamente.',
             'user' => [
                 'name' => $dto->name,
-                'email' => $dto->email,
+                'email' => $email,
                 'role' => $dto->role->value,
-                'role_label' => $dto->role->label()
-            ]
+                'role_label' => $dto->role->label(),
+            ],
         ];
     }
 
     public function login(string $email, string $password): array
     {
-        $user = $this->userRepository->findByEmail($email);
+        $normalizedEmail = strtolower(trim($email));
+        $user = $this->userRepository->findByEmail($normalizedEmail);
+        $passwordValid = false;
 
-        if (!$user || !password_verify($password, $user['password'])) {
+        if ($user !== null && is_string($user['password'] ?? '')) {
+            $passwordValid = password_verify($password, $user['password']);
+            if ($passwordValid && password_needs_rehash($user['password'], PASSWORD_ARGON2ID)) {
+                $user['password'] = password_hash($password, PASSWORD_ARGON2ID);
+            }
+        }
+
+        if (!$user || !$passwordValid) {
+            usleep(200000);
             return [
                 'status' => 'unauthorized',
                 'message' => 'Credenciales de acceso inválidas.'
@@ -71,19 +83,19 @@ class AuthService
         $token = $this->jwtService->generateToken([
             'user_id' => $user['id'],
             'email' => $user['email'],
-            'role' => $user['role']
+            'role' => $user['role'],
         ]);
 
         return [
             'status' => 'success',
             'message' => 'Autenticación exitosa.',
-            'token' => $token,
             'user' => [
                 'id' => $user['id'],
                 'name' => $user['name'],
                 'email' => $user['email'],
-                'role' => $user['role']
-            ]
+                'role' => $user['role'],
+            ],
+            'token' => $token,
         ];
     }
 }

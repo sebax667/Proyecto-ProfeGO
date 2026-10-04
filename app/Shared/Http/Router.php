@@ -5,11 +5,12 @@ declare(strict_types=1);
 namespace App\Shared\Http;
 
 use ReflectionMethod;
+use Throwable;
 
 final class Router
 {
     /**
-     * @var array<int, array{method: string, path: string, handler: callable|array, middlewares: array<int, class-string>}> 
+     * @var array<int, array{method: string, path: string, handler: callable|array, middlewares: array<int, object|class-string>}> 
      */
     private array $routes = [];
 
@@ -25,7 +26,7 @@ final class Router
 
     /**
      * @param callable|array $handler
-     * @param array<int, class-string> $middlewares
+     * @param array<int, object|class-string> $middlewares
      */
     private function addRoute(string $method, string $path, array|callable $handler, array $middlewares): void
     {
@@ -39,59 +40,69 @@ final class Router
 
     public function dispatch(string $requestMethod, string $requestUri): void
     {
-        $method = strtoupper($requestMethod);
-        $path = $this->normalizePath((string) (parse_url($requestUri, PHP_URL_PATH) ?? '/'));
+        try {
+            $method = strtoupper($requestMethod);
+            $path = $this->normalizePath((string) (parse_url($requestUri, PHP_URL_PATH) ?? '/'));
 
-        foreach ($this->routes as $route) {
-            if ($route['method'] !== $method || !$this->matchesPath($path, $route['path'])) {
-                continue;
-            }
-
-            $authenticatedUser = null;
-            foreach ($route['middlewares'] as $middlewareClass) {
-                $middleware = new $middlewareClass();
-                $result = method_exists($middleware, 'handleWithUser')
-                    ? $middleware->handleWithUser($authenticatedUser)
-                    : $middleware->handle();
-
-                if ($result === false || (is_array($result) && ($result['error'] ?? false))) {
-                    return;
+            foreach ($this->routes as $route) {
+                if ($route['method'] !== $method || !$this->matchesPath($path, $route['path'])) {
+                    continue;
                 }
 
-                if (is_array($result) && !isset($result['error'])) {
-                    $authenticatedUser = $result;
+                $authenticatedUser = null;
+                foreach ($route['middlewares'] as $middleware) {
+                    $instance = is_object($middleware) ? $middleware : new $middleware();
+                    $result = method_exists($instance, 'handleWithUser')
+                        ? $instance->handleWithUser($authenticatedUser)
+                        : $instance->handle();
+
+                    if ($result === false || (is_array($result) && ($result['error'] ?? false))) {
+                        return;
+                    }
+
+                    if (is_array($result) && !isset($result['error'])) {
+                        $authenticatedUser = $result;
+                    }
                 }
+
+                $response = $this->callHandler($route['handler'], $authenticatedUser);
+                $this->sendResponse($response, $path);
+                return;
             }
 
-            $response = $this->callHandler($route['handler'], $authenticatedUser);
-            $this->sendResponse($response);
+            $this->sendErrorResponse(404, $path);
+        } catch (Throwable $e) {
+            error_log('Router error: ' . $e->getMessage());
+            $path = $this->normalizePath((string) (parse_url($requestUri, PHP_URL_PATH) ?? '/'));
+            $this->sendErrorResponse(500, $path);
+        }
+    }
+
+    private function sendErrorResponse(int $statusCode, string $path): void
+    {
+        if (str_starts_with($path, '/api/')) {
+            $this->sendJsonResponse($statusCode, [
+                'status' => 'error',
+                'message' => $statusCode === 404 ? 'Ruta no encontrada' : 'Error interno del servidor.',
+            ]);
             return;
         }
 
-        $this->sendJsonResponse(404, [
-            'status' => 'error',
-            'message' => 'Ruta no encontrada',
-        ]);
+        ErrorPage::send($statusCode);
     }
 
     private function matchesPath(string $requestPath, string $routePath): bool
     {
-        $routePath = $this->normalizePath($routePath);
-
-        if ($requestPath === $routePath) {
-            return true;
-        }
-
-        return strlen($requestPath) > strlen($routePath)
-            && str_ends_with($requestPath, '/' . ltrim($routePath, '/'));
+        return $this->normalizePath($requestPath) === $this->normalizePath($routePath);
     }
 
     private function normalizePath(string $path): string
     {
-        $path = '/' . trim(preg_replace('#/+#', '/', $path) ?? '', '/');
+        $path = preg_replace('#/+#', '/', $path ?? '/');
+        $path = '/' . trim((string) $path, '/');
 
-        if ($path === '/') {
-            return $path;
+        if ($path === '') {
+            return '/';
         }
 
         return $path;
@@ -103,14 +114,15 @@ final class Router
      */
     private function callHandler(array|callable $handler, mixed $authenticatedUser = null): mixed
     {
-        $request = $_REQUEST;
+        $request = array_merge($_GET, $_POST);
         if (in_array($_SERVER['REQUEST_METHOD'] ?? '', ['POST', 'PUT', 'PATCH'], true)
-            && str_contains(strtolower($_SERVER['CONTENT_TYPE'] ?? ''), 'application/json')) {
+            && str_contains(strtolower((string) ($_SERVER['CONTENT_TYPE'] ?? '')), 'application/json')) {
             $decoded = json_decode((string) file_get_contents('php://input'), true);
             if (is_array($decoded)) {
                 $request = array_merge($request, $decoded);
             }
         }
+
         if (is_array($handler)) {
             if (count($handler) !== 2) {
                 throw new \InvalidArgumentException('El handler de ruta debe ser un array con [Controller, Metodo].');
@@ -154,7 +166,7 @@ final class Router
     /**
      * @param mixed $response
      */
-    private function sendResponse(mixed $response): void
+    private function sendResponse(mixed $response, string $path): void
     {
         if ($response === null) {
             return;
@@ -178,6 +190,11 @@ final class Router
                     'error' => 400,
                     default => 200,
                 };
+            }
+
+            if (!str_starts_with($path, '/api/') && in_array($statusCode, [401, 403, 404, 500], true)) {
+                $this->sendErrorResponse($statusCode, $path);
+                return;
             }
 
             $this->sendJsonResponse($statusCode, $payload);

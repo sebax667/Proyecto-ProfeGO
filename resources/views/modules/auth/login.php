@@ -2,8 +2,16 @@
 
 declare(strict_types=1);
 
-$redirect = trim((string) ($_GET['redirect'] ?? '/dashboard'));
-if ($redirect === '' || !str_starts_with($redirect, '/') || str_starts_with($redirect, '//')) {
+$redirect = (string) ($_GET['redirect'] ?? '/dashboard');
+$hasControlCharacters = preg_match('/[\x00-\x1F\x7F]/', $redirect) === 1;
+$redirect = trim($redirect);
+if (
+    $redirect === ''
+    || !str_starts_with($redirect, '/')
+    || str_starts_with($redirect, '//')
+    || str_contains($redirect, '\\')
+    || $hasControlCharacters
+) {
     $redirect = '/dashboard';
 }
 ?>
@@ -39,16 +47,16 @@ if ($redirect === '' || !str_starts_with($redirect, '/') || str_starts_with($red
 
                 <div class="relative grid gap-3 sm:grid-cols-3">
                     <div class="rounded-2xl border border-white/10 bg-white/5 p-3">
-                        <p class="text-2xl font-black text-white">1.2k+</p>
-                        <p class="mt-1 text-xs text-slate-300">estudiantes activos</p>
+                        <p class="text-lg font-black text-white">Tutorías 1:1</p>
+                        <p class="mt-1 text-xs text-slate-300">Clases personalizadas por tema.</p>
                     </div>
                     <div class="rounded-2xl border border-white/10 bg-white/5 p-3">
-                        <p class="text-2xl font-black text-white">4.9/5</p>
-                        <p class="mt-1 text-xs text-slate-300">calificación media</p>
+                        <p class="text-lg font-black text-white">Plan de estudio</p>
+                        <p class="mt-1 text-xs text-slate-300">Seguimiento claro y adaptable.</p>
                     </div>
                     <div class="rounded-2xl border border-white/10 bg-white/5 p-3">
-                        <p class="text-2xl font-black text-white">24/7</p>
-                        <p class="mt-1 text-xs text-slate-300">soporte en línea</p>
+                        <p class="text-lg font-black text-white">Soporte real</p>
+                        <p class="mt-1 text-xs text-slate-300">Respuesta y acompañamiento en tu ritmo.</p>
                     </div>
                 </div>
             </div>
@@ -92,16 +100,6 @@ if ($redirect === '' || !str_starts_with($redirect, '/') || str_starts_with($red
                         >
                     </div>
 
-                    <div class="flex items-center justify-between text-sm">
-                        <label class="inline-flex items-center gap-2 text-slate-600">
-                            <input type="checkbox" class="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
-                            Recordarme
-                        </label>
-                        <a href="/recover" class="font-semibold text-indigo-600 hover:text-indigo-500">
-                            ¿Olvidaste tu contraseña?
-                        </a>
-                    </div>
-
                     <button type="submit" class="profego-button w-full">
                         Iniciar sesión
                     </button>
@@ -119,40 +117,6 @@ if ($redirect === '' || !str_starts_with($redirect, '/') || str_starts_with($red
         </div>
     </div>
 
-    <script>
-        document.getElementById('login-form').addEventListener('submit', async (event) => {
-            event.preventDefault();
-            const form = event.currentTarget;
-            const error = document.getElementById('login-error');
-            const button = form.querySelector('button[type="submit"]');
-            button.disabled = true;
-            error.hidden = true;
-
-            try {
-                const response = await fetch(form.action, {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                    body: JSON.stringify({
-                        email: form.elements.email.value,
-                        password: form.elements.password.value
-                    })
-                });
-
-                const payload = await response.json();
-
-                if (!response.ok || payload.status !== 'success') {
-                    throw new Error(payload.message || 'No se pudo iniciar sesión.');
-                }
-
-                window.location.assign(form.elements.redirect.value);
-            } catch (requestError) {
-                error.textContent = requestError.message;
-                error.hidden = false;
-            } finally {
-                button.disabled = false;
-            }
-        });
-    </script>
+    <script src="/assets/js/login.js" defer></script>
 </body>
 </html>

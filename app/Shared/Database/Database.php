@@ -15,13 +15,23 @@ class Database
     {
         if (self::$instance === null) {
             try {
-                self::$instance = new PDO('sqlite:' . __DIR__ . '/../../../database/database.sqlite');
+                $dbPath = getenv('DB_PATH') ?: __DIR__ . '/../../../database/database.sqlite';
+                $directory = dirname($dbPath);
+                if ($directory !== '' && !is_dir($directory)) {
+                    @mkdir($directory, 0777, true);
+                }
+
+                self::$instance = new PDO('sqlite:' . $dbPath);
                 self::$instance->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
                 self::$instance->setAttribute(PDO::ATTR_DEFAULT_FETCH_MODE, PDO::FETCH_ASSOC);
+                self::$instance->setAttribute(PDO::ATTR_EMULATE_PREPARES, false);
                 self::$instance->exec('PRAGMA foreign_keys = ON');
+                self::$instance->exec('PRAGMA journal_mode = WAL');
+                self::$instance->exec('PRAGMA busy_timeout = 5000');
+                self::$instance->exec('PRAGMA synchronous = NORMAL');
                 self::migrate(self::$instance);
             } catch (PDOException $e) {
-                throw new \RuntimeException("Error de conexión a la base de datos: " . $e->getMessage());
+                throw new \RuntimeException('Error de conexión a la base de datos: ' . $e->getMessage());
             }
         }
 
@@ -31,34 +41,62 @@ class Database
     private static function migrate(PDO $pdo): void
     {
         $pdo->exec('CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT NOT NULL, email TEXT NOT NULL UNIQUE,
-            password TEXT NOT NULL, role TEXT NOT NULL DEFAULT "student",
-            avatar_url TEXT, phone TEXT, created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL,
+            password TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT "student",
+            avatar_url TEXT,
+            phone TEXT,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )');
-        $pdo->exec('CREATE TABLE IF NOT EXISTS tutor_profiles (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, user_id INTEGER NOT NULL UNIQUE,
-            headline TEXT NOT NULL, bio TEXT DEFAULT "", hourly_rate REAL NOT NULL DEFAULT 0,
-            rating_avg REAL NOT NULL DEFAULT 0, reviews_count INTEGER NOT NULL DEFAULT 0,
-            modality TEXT NOT NULL DEFAULT "virtual", city TEXT, subjects TEXT DEFAULT "[]",
-            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+
+        $pdo->exec('CREATE TABLE IF NOT EXISTS schema_migrations (
+            version INTEGER NOT NULL PRIMARY KEY,
+            applied_at DATETIME DEFAULT CURRENT_TIMESTAMP
         )');
-        $pdo->exec('CREATE TABLE IF NOT EXISTS tutor_availabilities (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, tutor_id INTEGER NOT NULL,
-            start_at TEXT NOT NULL, end_at TEXT NOT NULL, is_active INTEGER NOT NULL DEFAULT 1,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (tutor_id) REFERENCES tutor_profiles(id) ON DELETE CASCADE
-        )');
-        $pdo->exec('CREATE TABLE IF NOT EXISTS bookings (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, tutor_id INTEGER NOT NULL, student_id INTEGER NOT NULL,
-            starts_at TEXT NOT NULL, ends_at TEXT NOT NULL, status TEXT NOT NULL DEFAULT "pending",
-            hourly_rate REAL NOT NULL, total_price REAL NOT NULL, title TEXT, notes TEXT,
-            meeting_type TEXT DEFAULT "video", meeting_id TEXT, meeting_url TEXT,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (tutor_id) REFERENCES tutor_profiles(id) ON DELETE CASCADE,
-            FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
-        )');
-        self::addColumnIfMissing($pdo, 'users', 'avatar_url', 'TEXT');
-        self::addColumnIfMissing($pdo, 'users', 'phone', 'TEXT');
+
+        $migrationsDir = __DIR__ . '/../../../database/migrations';
+        if (!is_dir($migrationsDir)) {
+            return;
+        }
+
+        $currentVersion = (int) $pdo->query('PRAGMA user_version')->fetchColumn();
+        $files = glob($migrationsDir . '/*.php');
+        if ($files === false) {
+            return;
+        }
+
+        sort($files, SORT_STRING);
+        foreach ($files as $file) {
+            $version = (int) basename($file, '.php');
+            if ($version <= $currentVersion) {
+                $stmt = $pdo->prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (:version)');
+                $stmt->execute([':version' => $version]);
+                continue;
+            }
+
+            $migration = require $file;
+            $pdo->beginTransaction();
+            try {
+                if (is_callable($migration)) {
+                    $migration($pdo);
+                }
+
+                $pdo->exec('PRAGMA user_version = ' . $version);
+                $stmt = $pdo->prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (:version)');
+                $stmt->execute([':version' => $version]);
+                $pdo->commit();
+            } catch (\Throwable $exception) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+
+                throw $exception;
+            }
+
+            $currentVersion = $version;
+        }
     }
 
     private static function addColumnIfMissing(PDO $pdo, string $table, string $column, string $definition): void

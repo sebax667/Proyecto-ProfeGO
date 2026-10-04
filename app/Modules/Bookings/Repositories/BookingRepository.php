@@ -30,12 +30,39 @@ final class BookingRepository
         return $stmt->fetchColumn() !== false;
     }
 
+    public function getTutorHourlyRate(int $tutorId): float
+    {
+        $stmt = $this->pdo->prepare('SELECT hourly_rate FROM tutor_profiles WHERE id = :tutor_id LIMIT 1');
+        $stmt->execute([':tutor_id' => $tutorId]);
+        $value = $stmt->fetchColumn();
+
+        if ($value === false || $value === null || (float) $value <= 0.0) {
+            throw new \InvalidArgumentException('No se pudo obtener la tarifa del tutor.');
+        }
+
+        return (float) $value;
+    }
+
+    public function getTutorUserId(int $tutorId): int
+    {
+        $stmt = $this->pdo->prepare('SELECT user_id FROM tutor_profiles WHERE id = :tutor_id LIMIT 1');
+        $stmt->execute([':tutor_id' => $tutorId]);
+        $value = $stmt->fetchColumn();
+
+        if ($value === false || $value === null) {
+            throw new \InvalidArgumentException('No se pudo identificarse al usuario del tutor.');
+        }
+
+        return (int) $value;
+    }
+
     public function hasTutorAvailability(int $tutorId, string $startsAt, string $endsAt): bool
     {
         $stmt = $this->pdo->prepare(
             'SELECT id
              FROM tutor_availabilities
              WHERE tutor_id = :tutor_id
+               AND is_active = 1
                AND start_at <= :starts_at
                AND end_at >= :ends_at
              LIMIT 1'
@@ -71,6 +98,21 @@ final class BookingRepository
         ]);
 
         return $stmt->fetchColumn() !== false;
+    }
+
+    public function beginTransaction(): bool
+    {
+        return $this->pdo->beginTransaction();
+    }
+
+    public function commit(): bool
+    {
+        return $this->pdo->commit();
+    }
+
+    public function rollBack(): bool
+    {
+        return $this->pdo->rollBack();
     }
 
     public function create(CreateBookingDTO $dto, float $totalPrice, string $meetingId, string $meetingUrl): int
@@ -128,7 +170,11 @@ final class BookingRepository
     public function findById(int $bookingId): ?array
     {
         $stmt = $this->pdo->prepare(
-            'SELECT * FROM bookings WHERE id = :booking_id LIMIT 1'
+            'SELECT b.*, tp.user_id AS tutor_user_id
+             FROM bookings b
+             INNER JOIN tutor_profiles tp ON tp.id = b.tutor_id
+             WHERE b.id = :booking_id
+             LIMIT 1'
         );
         $stmt->execute([':booking_id' => $bookingId]);
 

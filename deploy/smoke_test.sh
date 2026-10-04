@@ -52,6 +52,24 @@ check_json_contains() {
     echo "OK: ${path} contiene '${expected_text}'"
 }
 
+check_blocked_path() {
+    local path="$1"
+    local status
+
+    status="$(curl --silent --show-error --output /dev/null \
+        --write-out '%{http_code}' \
+        --max-time "${CURL_TIMEOUT}" \
+        "${BASE_URL}${path}")"
+
+    case "${status}" in
+        403|404) echo "OK: ${path} -> HTTP ${status}" ;;
+        *)
+            echo "FALLO: ${path} devolvió HTTP ${status}; esperado 403 o 404." >&2
+            exit 1
+            ;;
+    esac
+}
+
 check_ai_chat() {
     local response_file="${TMP_DIR}/ai-chat.json"
     local status
@@ -86,7 +104,27 @@ check_ai_chat() {
     echo "OK: /api/ai/chat -> HTTP ${status}, status=success y tutores disponibles"
 }
 
+check_security_headers() {
+    local headers
+
+    headers="$(curl --silent --show-error --dump-header - --output /dev/null \
+        --max-time "${CURL_TIMEOUT}" \
+        "${BASE_URL}/catalog" | tr -d '\r')"
+
+    for header in Strict-Transport-Security X-Content-Type-Options X-Frame-Options Content-Security-Policy; do
+        if ! printf '%s\n' "${headers}" | grep -qi "${header}"; then
+            echo "FALLO: falta el encabezado ${header} en /catalog." >&2
+            exit 1
+        fi
+    done
+
+    echo "OK: encabezados de seguridad presentes en /catalog"
+}
+
 check_status "/catalog" "200"
+check_blocked_path "/.git/config"
+check_blocked_path "/vendor/autoload.php"
+check_security_headers
 check_json_contains "/api/ai/keywords" '"status"' "200"
 check_ai_chat
 
