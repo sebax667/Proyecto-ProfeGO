@@ -69,7 +69,9 @@ $pdo->exec("CREATE TABLE bookings (
 $pdo->exec("INSERT INTO users (id, name, email, password, role, avatar_url, phone) VALUES (1, 'Tutor Demo', 'tutor@example.com', 'hash', 'tutor', null, null)");
 $pdo->exec("INSERT INTO users (id, name, email, password, role, avatar_url, phone) VALUES (2, 'Student Demo', 'student@example.com', 'hash', 'student', null, null)");
 $pdo->exec("INSERT INTO tutor_profiles (id, user_id, headline, bio, hourly_rate, rating_avg, reviews_count, modality, city, subjects) VALUES (1, 1, 'Tutor Demo', 'Bio demo', 50, 4.9, 25, 'virtual', 'Bogotá', '[\"Matemáticas\", \"Física\"]')");
-$pdo->exec("INSERT INTO tutor_availabilities (id, tutor_id, start_at, end_at, is_active) VALUES (1, 1, '2026-09-01T10:00:00+00:00', '2026-09-01T12:00:00+00:00', 1)");
+$startAt = gmdate('Y-m-d\TH:i:s\Z', strtotime('+30 days'));
+$endAt = gmdate('Y-m-d\TH:i:s\Z', strtotime('+30 days +3 hours'));
+$pdo->exec("INSERT INTO tutor_availabilities (id, tutor_id, start_at, end_at, is_active) VALUES (1, 1, '{$startAt}', '{$endAt}', 1)");
 
 $repo = new BookingRepository($pdo);
 $service = new BookingService($repo, new MockVideoAdapter());
@@ -78,8 +80,8 @@ $controller = new BookingController($service);
 $request = [
     'tutor_id' => 1,
     'student_id' => 2,
-    'starts_at' => '2026-09-01T10:30:00+00:00',
-    'ends_at' => '2026-09-01T11:30:00+00:00',
+    'starts_at' => gmdate('Y-m-d\TH:i:s\Z', strtotime('+30 days +30 minutes')),
+    'ends_at' => gmdate('Y-m-d\TH:i:s\Z', strtotime('+30 days +90 minutes')),
     'hourly_rate' => 50,
     'title' => 'Clase de álgebra',
     'notes' => 'Repaso de ecuaciones cuadráticas',
@@ -96,7 +98,7 @@ if ($bookingId <= 0) {
     throw new RuntimeException('No se creó el booking correctamente.');
 }
 
-$confirmResult = $controller->confirm(['booking_id' => $bookingId], ['user_id' => 2]);
+$confirmResult = $controller->confirm(['booking_id' => $bookingId], ['user_id' => 1, 'role' => 'tutor']);
 if (($confirmResult['status'] ?? '') !== 'success') {
     throw new RuntimeException('Fallo al confirmar reserva: ' . json_encode($confirmResult));
 }

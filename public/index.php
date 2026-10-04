@@ -203,14 +203,34 @@ $router->get('/settings', static function () use ($renderModule): string {
 $router->post('/api/bookings', [$bookingController, 'store'], [
     new CsrfOriginMiddleware(),
     AuthMiddleware::class,
+    new RoleMiddleware([
+        \App\Shared\Enums\UserRole::STUDENT->value,
+    ]),
 ]);
 $router->post('/api/bookings/confirm', [$bookingController, 'confirm'], [
     new CsrfOriginMiddleware(),
     AuthMiddleware::class,
+    new RoleMiddleware([
+        \App\Shared\Enums\UserRole::TUTOR->value,
+        \App\Shared\Enums\UserRole::ADMIN->value,
+    ]),
+]);
+$router->post('/api/bookings/reject', [$bookingController, 'reject'], [
+    new CsrfOriginMiddleware(),
+    AuthMiddleware::class,
+    new RoleMiddleware([
+        \App\Shared\Enums\UserRole::TUTOR->value,
+        \App\Shared\Enums\UserRole::ADMIN->value,
+    ]),
 ]);
 $router->post('/api/bookings/cancel', [$bookingController, 'cancel'], [
     new CsrfOriginMiddleware(),
     AuthMiddleware::class,
+    new RoleMiddleware([
+        \App\Shared\Enums\UserRole::STUDENT->value,
+        \App\Shared\Enums\UserRole::TUTOR->value,
+        \App\Shared\Enums\UserRole::ADMIN->value,
+    ]),
 ]);
 
 $router->get('/api/user/profile', [AuthController::class, 'profile'], [
