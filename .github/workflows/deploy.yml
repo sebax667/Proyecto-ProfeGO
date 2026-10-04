@@ -16,7 +16,7 @@ concurrency:
 
 jobs:
   deploy:
-    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') }}
     runs-on: ubuntu-latest
     environment: production
 
@@ -25,7 +25,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
       - name: Setup PHP 8.3
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240
         with:
           php-version: '8.3'
           extensions: sqlite3, pdo_sqlite, curl, mbstring
@@ -35,7 +35,7 @@ jobs:
         run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
 
       - name: Deploy over SSH
-        uses: appleboy/ssh-action@v1.0.3
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262
         env:
           APP_URL: ${{ vars.APP_URL }}
         with:
@@ -60,9 +60,20 @@ jobs:
           APP_URL: ${{ vars.APP_URL }}
         run: |
           set -euo pipefail
+
+          check_blocked_path() {
+            local path="$1"
+            local status
+            status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 15 "$APP_URL$path")
+            case "$status" in
+              403|404) echo "Protected path $path -> HTTP $status" ;;
+              *) echo "Unexpected HTTP $status for protected path $path" >&2; exit 1 ;;
+            esac
+          }
+
           curl -fsSL "$APP_URL/catalog" >/dev/null
-          curl -fsSL "$APP_URL/.env" >/dev/null 2>&1 && { echo 'Unexpected .env access'; exit 1; } || true
-          curl -fsSL "$APP_URL/database/database.sqlite" >/dev/null 2>&1 && { echo 'Unexpected SQLite access'; exit 1; } || true
+          check_blocked_path '/.env'
+          check_blocked_path '/database/database.sqlite'
           headers=$(curl -sSL -D - -o /tmp/profego_body.txt "$APP_URL/catalog" | tr -d '\r')
           echo "$headers" | grep -qi 'X-Content-Type-Options' && echo "$headers" | grep -qi 'X-Frame-Options' && echo "$headers" | grep -qi 'Content-Security-Policy'
 

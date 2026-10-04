@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 $baseUrl = 'http://127.0.0.1:8087';
 $root = dirname(__DIR__);
+$tempDirectory = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'profego_http_' . uniqid('', true);
+if (!mkdir($tempDirectory, 0700, true) && !is_dir($tempDirectory)) {
+    throw new RuntimeException('No se pudo crear el directorio temporal para el smoke test.');
+}
 $descriptorSpec = [
     0 => ['file', 'php://stdin', 'r'],
-    1 => ['file', $root . '/tmp/profego_http.log', 'a'],
-    2 => ['file', $root . '/tmp/profego_http.err', 'a'],
+    1 => ['file', $tempDirectory . '/profego_http.log', 'a'],
+    2 => ['file', $tempDirectory . '/profego_http.err', 'a'],
 ];
 $process = proc_open('php -S 127.0.0.1:8087 -t ' . escapeshellarg($root . '/public'), $descriptorSpec, $pipes, $root);
 if (!is_resource($process)) {
@@ -29,12 +33,14 @@ function curlStatus(string $url, array $headers = []): array
 
     $stream = stream_context_create($options);
     $content = @file_get_contents($url, false, $stream);
-    $meta = stream_get_meta_data($stream);
     $response = $http_response_header ?? [];
 
     return [
         'content' => $content === false ? '' : (string) $content,
         'headers' => $response,
+        'status' => isset($response[0]) && preg_match('/\s(\d{3})(?:\s|$)/', $response[0], $matches) === 1
+            ? (int) $matches[1]
+            : 0,
     ];
 }
 
@@ -58,16 +64,9 @@ foreach ($checks as [$path, $label]) {
         }
     }
 
-    if ($label === 'blocked-file' && $result['content'] !== '') {
-        $failures[] = 'Archivo sensible accesible: ' . $path;
-    }
-
-    if ($label === 'blocked-db' && $result['content'] !== '') {
-        $failures[] = 'Base de datos accesible: ' . $path;
-    }
-
-    if ($label === 'blocked-vendor' && $result['content'] !== '') {
-        $failures[] = 'Vendor accesible: ' . $path;
+    if (in_array($label, ['blocked-file', 'blocked-db', 'blocked-vendor'], true)
+        && !in_array($result['status'], [403, 404], true)) {
+        $failures[] = 'Ruta sensible no devolvió 403/404: ' . $path . ' (HTTP ' . $result['status'] . ')';
     }
 }
 
@@ -92,6 +91,11 @@ if (!str_contains($csrfHeadersText, '403')) {
 }
 
 proc_terminate($process);
+proc_close($process);
+@unlink($tempDirectory . '/profego_http.log');
+@unlink($tempDirectory . '/profego_http.err');
+@rmdir($tempDirectory);
+
 if ($failures !== []) {
     throw new RuntimeException(implode('; ', $failures));
 }
