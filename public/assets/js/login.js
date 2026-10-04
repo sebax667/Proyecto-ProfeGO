@@ -1,4 +1,23 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const safeRedirect = (value) => {
+        if (
+            typeof value !== 'string'
+            || !value.startsWith('/')
+            || value.startsWith('//')
+            || value.includes('\\')
+            || /[\u0000-\u001f\u007f]/.test(value)
+        ) {
+            return '/dashboard';
+        }
+
+        try {
+            const destination = new URL(value, window.location.origin);
+            return destination.origin === window.location.origin ? destination.href : '/dashboard';
+        } catch {
+            return '/dashboard';
+        }
+    };
+
     const form = document.getElementById('login-form');
     if (!form) {
         return;
@@ -39,12 +58,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             const redirectField = form.elements.redirect;
-            if (redirectField && typeof redirectField.value === 'string' && redirectField.value.length > 0) {
-                window.location.assign(redirectField.value);
-                return;
-            }
-
-            window.location.assign('/dashboard');
+            window.location.assign(safeRedirect(redirectField?.value));
         } catch (requestError) {
             const message = requestError instanceof Error ? requestError.message : 'No se pudo iniciar sesión.';
             error.textContent = message;

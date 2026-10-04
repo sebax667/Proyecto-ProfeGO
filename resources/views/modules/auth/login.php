@@ -2,8 +2,16 @@
 
 declare(strict_types=1);
 
-$redirect = trim((string) ($_GET['redirect'] ?? '/dashboard'));
-if ($redirect === '' || !str_starts_with($redirect, '/') || str_starts_with($redirect, '//')) {
+$redirect = (string) ($_GET['redirect'] ?? '/dashboard');
+$hasControlCharacters = preg_match('/[\x00-\x1F\x7F]/', $redirect) === 1;
+$redirect = trim($redirect);
+if (
+    $redirect === ''
+    || !str_starts_with($redirect, '/')
+    || str_starts_with($redirect, '//')
+    || str_contains($redirect, '\\')
+    || $hasControlCharacters
+) {
     $redirect = '/dashboard';
 }
 ?>

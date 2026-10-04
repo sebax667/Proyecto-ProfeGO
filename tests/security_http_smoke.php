@@ -65,6 +65,24 @@ if ($webNotFound['status'] !== 404 || !str_contains($webNotFound['content'], 'Er
     $failures[] = 'La ruta web desconocida no mostró la página HTML 404.';
 }
 
+$backslashRedirect = curlStatus($baseUrl . '/login?redirect=/%5Cevil.com');
+if (
+    $backslashRedirect['status'] !== 200
+    || preg_match('/<input type="hidden" name="redirect" value="([^"]*)"/', $backslashRedirect['content'], $redirectMatch) !== 1
+    || html_entity_decode($redirectMatch[1], ENT_QUOTES | ENT_HTML5, 'UTF-8') !== '/dashboard'
+) {
+    $failures[] = 'El redirect con backslash no cayó al destino seguro /dashboard.';
+}
+
+$controlRedirect = curlStatus($baseUrl . '/login?redirect=%0A/catalog');
+if (
+    $controlRedirect['status'] !== 200
+    || preg_match('/<input type="hidden" name="redirect" value="([^"]*)"/', $controlRedirect['content'], $redirectMatch) !== 1
+    || html_entity_decode($redirectMatch[1], ENT_QUOTES | ENT_HTML5, 'UTF-8') !== '/dashboard'
+) {
+    $failures[] = 'El redirect con carácter de control no cayó al destino seguro /dashboard.';
+}
+
 $apiNotFound = curlStatus($baseUrl . '/api/missing-page');
 if ($apiNotFound['status'] !== 404 || json_decode($apiNotFound['content'], true) === null) {
     $failures[] = 'La ruta API desconocida no conservó la respuesta JSON 404.';
