@@ -74,6 +74,15 @@ if (
     $failures[] = 'El redirect con backslash no cayó al destino seguro /dashboard.';
 }
 
+$protocolRelativeRedirect = curlStatus($baseUrl . '/login?redirect=//evil.com');
+if (
+    $protocolRelativeRedirect['status'] !== 200
+    || preg_match('/<input type="hidden" name="redirect" value="([^"]*)"/', $protocolRelativeRedirect['content'], $redirectMatch) !== 1
+    || html_entity_decode($redirectMatch[1], ENT_QUOTES | ENT_HTML5, 'UTF-8') !== '/dashboard'
+) {
+    $failures[] = 'El redirect protocol-relative no cayó al destino seguro /dashboard.';
+}
+
 $controlRedirect = curlStatus($baseUrl . '/login?redirect=%0A/catalog');
 if (
     $controlRedirect['status'] !== 200
