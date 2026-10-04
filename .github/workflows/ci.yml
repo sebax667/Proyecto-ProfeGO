@@ -2,6 +2,7 @@ name: ProfeGo CI
 
 permissions:
   contents: read
+  pull-requests: read
 
 on:
   push:
@@ -11,7 +12,7 @@ on:
 
 jobs:
   quality:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
 
     steps:
@@ -20,7 +21,8 @@ jobs:
 
       - name: Setup PHP 8.3
         uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240
-        with:
+        with: 
+          fetch-depth: 0
           php-version: '8.3'
           extensions: sqlite3, pdo_sqlite, curl, mbstring
           coverage: none
@@ -60,5 +62,7 @@ jobs:
 
       - name: Secret scanning
         uses: gitleaks/gitleaks-action@ff98106e4c7b2bc287b24eaf42907196329070c7
-        with:
-          args: detect --no-banner --redact --report-format sarif --report-path results.sarif
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_ENABLE_COMMENTS: "false"
+          GITLEAKS_ENABLE_UPLOAD_ARTIFACT: "false"
