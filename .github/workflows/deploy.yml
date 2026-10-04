@@ -24,36 +24,20 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
-      - name: Setup PHP 8.3
-        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240
-        with:
-          php-version: '8.3'
-          extensions: sqlite3, pdo_sqlite, curl, mbstring
-          coverage: none
-
-      - name: Install production dependencies
-        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
-
       - name: Deploy over SSH
-        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262
         env:
-          APP_URL: ${{ vars.APP_URL }}
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: ${{ secrets.VPS_USER }}
-          key: ${{ secrets.VPS_SSH_KEY }}
-          fingerprint: ${{ secrets.VPS_KNOWN_HOSTS }}
-          port: 22
-          script: |
-            set -euo pipefail
-            cd /var/www/profego
-            git fetch --prune
-            git reset --hard origin/main
-            composer install --no-dev --optimize-autoloader --no-interaction
-            npm ci
-            npm run build:css
-            sudo /usr/local/bin/profego-fix-perms
-            sudo systemctl reload php8.3-fpm
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          install -m 700 -d "$HOME/.ssh"
+          printf '%s\n' "$VPS_SSH_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$VPS_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          ssh -o StrictHostKeyChecking=yes -o BatchMode=yes "$VPS_USER@$VPS_HOST" 'bash -s' < deploy/remote_deploy.sh
 
       - name: Smoke test production URL
         env:
@@ -71,11 +55,23 @@ jobs:
             esac
           }
 
-          curl -fsSL "$APP_URL/catalog" >/dev/null
+          catalog_status=$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 15 "$APP_URL/catalog")
+          if [ "$catalog_status" != "200" ]; then
+            echo "Unexpected HTTP $catalog_status for /catalog" >&2
+            exit 1
+          fi
           check_blocked_path '/.env'
           check_blocked_path '/database/database.sqlite'
-          headers=$(curl -sSL -D - -o /tmp/profego_body.txt "$APP_URL/catalog" | tr -d '\r')
-          echo "$headers" | grep -qi 'X-Content-Type-Options' && echo "$headers" | grep -qi 'X-Frame-Options' && echo "$headers" | grep -qi 'Content-Security-Policy'
+          check_blocked_path '/.git/config'
+          check_blocked_path '/vendor/autoload.php'
+          headers=$(curl --silent --show-error --dump-header - --output /dev/null --max-time 15 "$APP_URL/catalog" | tr -d '\r')
+          for header in Strict-Transport-Security X-Content-Type-Options X-Frame-Options Content-Security-Policy; do
+            if ! printf '%s\n' "$headers" | grep -qi "$header"; then
+              echo "Missing security header $header on /catalog" >&2
+              exit 1
+            fi
+          done
 
       - name: Deployment summary
-        run: echo "Public URL: ${{ vars.APP_URL }}" >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          echo "Public URL: ${{ vars.APP_URL }}" >> "$GITHUB_STEP_SUMMARY"
