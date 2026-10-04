@@ -12,6 +12,9 @@ putenv('APP_ENV=testing');
 putenv('JWT_SECRET=' . bin2hex(random_bytes(32)));
 putenv('DB_PATH=' . sys_get_temp_dir() . '/profego_auth_test_' . uniqid('', true) . '.sqlite');
 
+$testPassword = bin2hex(random_bytes(32));
+$wrongPassword = bin2hex(random_bytes(32));
+
 after: {
     // ensure temp DB is created and reused
     Database::getConnection();
@@ -22,7 +25,7 @@ $controller = new AuthController();
 $register = $controller->handleRegister([
     'name' => 'Ana García',
     'email' => 'ANA@EXAMPLE.COM',
-    'password' => 'password123',
+    'password' => $testPassword,
 ]);
 if (($register['status'] ?? null) !== 'success') {
     throw new RuntimeException('Registro válido falló: ' . json_encode($register));
@@ -31,7 +34,7 @@ if (($register['status'] ?? null) !== 'success') {
 $dup = $controller->handleRegister([
     'name' => 'Ana García',
     'email' => 'ana@example.com',
-    'password' => 'password123',
+    'password' => $testPassword,
 ]);
 if (($dup['status'] ?? null) !== 'error') {
     throw new RuntimeException('Duplicado con distinta capitalización no fue bloqueado: ' . json_encode($dup));
@@ -40,7 +43,7 @@ if (($dup['status'] ?? null) !== 'error') {
 $invalidType = $controller->handleRegister([
     'name' => ['bad'],
     'email' => 'bad@example.com',
-    'password' => 'password123',
+    'password' => $testPassword,
 ]);
 if (($invalidType['status'] ?? null) !== 'error') {
     throw new RuntimeException('Tipo inválido de nombre no fue rechazado.');
@@ -57,7 +60,7 @@ if (($shortPassword['status'] ?? null) !== 'error') {
 
 $loginOk = $controller->handleLogin([
     'email' => 'ana@example.com',
-    'password' => 'password123',
+    'password' => $testPassword,
 ]);
 if (($loginOk['status'] ?? null) !== 'success') {
     throw new RuntimeException('Login correcto falló: ' . json_encode($loginOk));
@@ -77,7 +80,7 @@ if (!in_array('Set-Cookie: profego_token=; expires=Thu, 01 Jan 1970 00:00:00 GMT
 
 $wrongLogin = $controller->handleLogin([
     'email' => 'ana@example.com',
-    'password' => 'wrongpass12',
+    'password' => $wrongPassword,
 ]);
 if (($wrongLogin['status'] ?? null) !== 'unauthorized') {
     throw new RuntimeException('Login incorrecto no fue rechazado: ' . json_encode($wrongLogin));

@@ -119,12 +119,13 @@ $csrfHeaders = [
     'Content-Type: application/json',
     'Accept: application/json',
 ];
+$csrfTestPassword = bin2hex(random_bytes(32));
 $csrfContext = stream_context_create([
     'http' => [
         'method' => 'POST',
         'header' => implode("\r\n", $csrfHeaders),
         'ignore_errors' => true,
-        'content' => json_encode(['email' => 'ana@example.com', 'password' => 'password123']),
+        'content' => json_encode(['email' => 'ana@example.com', 'password' => $csrfTestPassword]),
         'timeout' => 10,
     ],
 ]);
