@@ -71,15 +71,31 @@ class Database
         foreach ($files as $file) {
             $version = (int) basename($file, '.php');
             if ($version <= $currentVersion) {
+                $stmt = $pdo->prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (:version)');
+                $stmt->execute([':version' => $version]);
                 continue;
             }
 
             $migration = require $file;
-            if (is_callable($migration)) {
-                $migration($pdo);
+            $pdo->beginTransaction();
+            try {
+                if (is_callable($migration)) {
+                    $migration($pdo);
+                }
+
+                $pdo->exec('PRAGMA user_version = ' . $version);
+                $stmt = $pdo->prepare('INSERT OR IGNORE INTO schema_migrations (version) VALUES (:version)');
+                $stmt->execute([':version' => $version]);
+                $pdo->commit();
+            } catch (\Throwable $exception) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+
+                throw $exception;
             }
 
-            $pdo->exec('PRAGMA user_version = ' . $version);
+            $currentVersion = $version;
         }
     }
 
