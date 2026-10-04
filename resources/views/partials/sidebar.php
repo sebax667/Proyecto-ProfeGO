@@ -1,4 +1,4 @@
-<aside class="profego-sidebar" aria-label="Navegación lateral">
+<aside class="profego-sidebar w-full lg:w-72 lg:shrink-0 flex flex-col" aria-label="Navegación lateral">
     <div class="border-b border-white/10 px-4 pb-6 pt-5">
         <?php require_once __DIR__ . '/../components/profego-brand.php'; ?>
     </div>

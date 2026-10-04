@@ -12,6 +12,10 @@ class AuthMiddleware
 
     public function __construct()
     {
+        if (session_status() === PHP_SESSION_NONE) {
+            session_start();
+        }
+
         $this->jwtService = new JwtService();
     }
 
@@ -32,6 +36,13 @@ class AuthMiddleware
 
         if (!$payload) {
             $this->denyAccess('Acceso denegado. Token expirado o firma inválida.');
+            return ['error' => true];
+        }
+
+        $revokedTokens = $_SESSION['revoked_tokens'] ?? [];
+        $jti = (string) ($payload['jti'] ?? '');
+        if ($jti !== '' && isset($revokedTokens[$jti])) {
+            $this->denyAccess('Acceso denegado. Sesión cerrada.');
             return ['error' => true];
         }
 
@@ -56,7 +67,7 @@ class AuthMiddleware
         header('Content-Type: application/json; charset=utf-8');
         echo json_encode([
             'status' => 'unauthorized',
-            'message' => $message
+            'message' => $message,
         ], JSON_UNESCAPED_UNICODE);
     }
 }

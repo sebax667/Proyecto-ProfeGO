@@ -6,6 +6,7 @@ namespace App\Modules\Auth\Repositories;
 
 use App\Shared\Database\Database;
 use PDO;
+use PDOException;
 
 class UserRepository
 {
@@ -14,42 +15,47 @@ class UserRepository
     public function __construct()
     {
         $this->db = Database::getConnection();
-        $this->initTable();
     }
 
-    private function initTable(): void
+    public function create(array $data): int
     {
-        $sql = "CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            email TEXT UNIQUE NOT NULL,
-            password TEXT NOT NULL,
-            role TEXT NOT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-        )";
-        $this->db->exec($sql);
-    }
+        $email = $this->normalizeEmail((string) ($data['email'] ?? ''));
 
-    public function create(array $data): bool
-    {
         $stmt = $this->db->prepare(
-            "INSERT INTO users (name, email, password, role) VALUES (:name, :email, :password, :role)"
+            'INSERT INTO users (name, email, password, role) VALUES (:name, :email, :password, :role)'
         );
 
-        return $stmt->execute([
-            ':name' => $data['name'],
-            ':email' => $data['email'],
-            ':password' => $data['password'],
-            ':role' => $data['role']
-        ]);
+        try {
+            $stmt->execute([
+                ':name' => trim((string) ($data['name'] ?? '')),
+                ':email' => $email,
+                ':password' => (string) ($data['password'] ?? ''),
+                ':role' => (string) ($data['role'] ?? 'student'),
+            ]);
+
+            $id = $this->db->lastInsertId();
+            return $id === false ? 0 : (int) $id;
+        } catch (PDOException $e) {
+            if (($e->errorInfo[0] ?? null) === '23000') {
+                return 0;
+            }
+
+            throw $e;
+        }
     }
 
     public function findByEmail(string $email): ?array
     {
-        $stmt = $this->db->prepare("SELECT * FROM users WHERE email = :email LIMIT 1");
-        $stmt->execute([':email' => $email]);
+        $normalizedEmail = $this->normalizeEmail($email);
+        $stmt = $this->db->prepare('SELECT * FROM users WHERE LOWER(email) = LOWER(:email) LIMIT 1');
+        $stmt->execute([':email' => $normalizedEmail]);
         $user = $stmt->fetch();
 
         return $user ?: null;
+    }
+
+    private function normalizeEmail(string $email): string
+    {
+        return strtolower(trim($email));
     }
 }

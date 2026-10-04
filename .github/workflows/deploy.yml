@@ -1,0 +1,70 @@
+name: Deploy ProfeGo Production
+
+on:
+  workflow_run:
+    workflows: ["ProfeGo CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: profego-production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+
+      - name: Setup PHP 8.3
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: sqlite3, pdo_sqlite, curl, mbstring
+          coverage: none
+
+      - name: Install production dependencies
+        run: composer install --no-dev --no-interaction --prefer-dist --optimize-autoloader
+
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          fingerprint: ${{ secrets.VPS_KNOWN_HOSTS }}
+          port: 22
+          script: |
+            set -euo pipefail
+            cd /var/www/profego
+            git fetch --prune
+            git reset --hard origin/main
+            composer install --no-dev --optimize-autoloader --no-interaction
+            npm ci
+            npm run build:css
+            sudo /usr/local/bin/profego-fix-perms
+            sudo systemctl reload php8.3-fpm
+
+      - name: Smoke test production URL
+        env:
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          set -euo pipefail
+          curl -fsSL "$APP_URL/catalog" >/dev/null
+          curl -fsSL "$APP_URL/.env" >/dev/null 2>&1 && { echo 'Unexpected .env access'; exit 1; } || true
+          curl -fsSL "$APP_URL/database/database.sqlite" >/dev/null 2>&1 && { echo 'Unexpected SQLite access'; exit 1; } || true
+          headers=$(curl -sSL -D - -o /tmp/profego_body.txt "$APP_URL/catalog" | tr -d '\r')
+          echo "$headers" | grep -qi 'X-Content-Type-Options' && echo "$headers" | grep -qi 'X-Frame-Options' && echo "$headers" | grep -qi 'Content-Security-Policy'
+
+      - name: Deployment summary
+        run: echo "Public URL: ${{ vars.APP_URL }}" >> "$GITHUB_STEP_SUMMARY"

@@ -1,5 +1,8 @@
 name: ProfeGo CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [ main ]
@@ -7,45 +10,55 @@ on:
     branches: [ main ]
 
 jobs:
-  build:
+  quality:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        php-version: ['8.2', '8.3']
+    timeout-minutes: 20
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
-      - name: Setup PHP
+      - name: Setup PHP 8.3
         uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ matrix.php-version }}
+          php-version: '8.3'
           extensions: sqlite3, pdo_sqlite, curl, mbstring
           coverage: none
 
-      - name: Validate PHP Syntax
+      - name: Validate Composer manifest
+        run: composer validate --no-check-publish
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Lint PHP files
         run: |
           find app public resources tests database -type f -name '*.php' -print0 |
             xargs -0 -n1 php -l
 
-      - name: Validate Shell Scripts Syntax
+      - name: Lint shell scripts
         run: |
           set -euo pipefail
-          for script in deploy/*.sh; do
-            bash -n "$script"
-          done
+          for script in deploy/*.sh; do bash -n "$script"; done
 
-      - name: Install Dependencies
-        run: composer install --no-dev --prefer-dist --no-interaction
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
 
-      - name: Prepare Database Directory
+      - name: Install npm dependencies
+        run: npm ci
+
+      - name: Build Tailwind assets
+        run: npm run build:css
+
+      - name: Run test suite
         run: |
-          mkdir -p database
-          chmod 750 database
+          set -euo pipefail
+          for file in tests/*.php; do php "$file"; done
 
-      - name: Run Booking Integration Tests
-        run: php tests/booking_integration.php
-
-      - name: Run AI Integration Tests
-        run: php tests/ai_integration.php
+      - name: Secret scanning
+        uses: gitleaks/gitleaks-action@v2
+        with:
+          args: detect --no-banner --redact --report-format sarif --report-path results.sarif

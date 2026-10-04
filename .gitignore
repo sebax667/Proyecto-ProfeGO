@@ -7,6 +7,10 @@ node_modules/
 *.sqlite
 *.sqlite3
 *.db
+*.sqlite-wal
+*.sqlite-shm
+/database/*.sqlite-wal
+/database/*.sqlite-shm
 .phpunit.result.cache
 .idea/
 .vscode/

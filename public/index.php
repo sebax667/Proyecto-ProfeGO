@@ -32,6 +32,20 @@ if (is_file(__DIR__ . '/../.env')) {
     }
 }
 
+$appEnv = strtolower((string) getenv('APP_ENV'));
+ini_set('display_errors', $appEnv === 'production' ? '0' : '1');
+error_reporting($appEnv === 'production' ? E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED : E_ALL);
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+
+$jwtSecret = (string) getenv('JWT_SECRET');
+if ($appEnv === 'production' && ($jwtSecret === '' || strlen($jwtSecret) < 32 || str_starts_with($jwtSecret, 'replace-with'))) {
+    http_response_code(500);
+    echo 'JWT_SECRET no está configurado correctamente para producción.';
+    exit(1);
+}
+
 use App\Modules\Auth\Controllers\AuthController;
 use App\Modules\Bookings\Controllers\BookingController;
 use App\Modules\Bookings\Listeners\SendEmailNotificationListener;
@@ -46,6 +60,7 @@ use App\Modules\SearchReputation\Repositories\SearchTutorRepository;
 use App\Shared\Events\EventDispatcher;
 use App\Shared\Http\Router;
 use App\Shared\Middleware\AuthMiddleware;
+use App\Shared\Middleware\CsrfOriginMiddleware;
 use App\Shared\Middleware\RoleMiddleware;
 use App\Shared\Database\Database;
 
@@ -86,8 +101,9 @@ $aiController = new AIController($aiAdapter);
 $router = new Router();
 
 // --- Rutas Públicas ---
-$router->post('/api/auth/register', [AuthController::class, 'handleRegister']);
-$router->post('/api/auth/login', [AuthController::class, 'handleLogin']);
+$router->post('/api/auth/register', [AuthController::class, 'handleRegister'], [new CsrfOriginMiddleware()]);
+$router->post('/api/auth/login', [AuthController::class, 'handleLogin'], [new CsrfOriginMiddleware()]);
+$router->post('/api/auth/logout', [AuthController::class, 'handleLogout'], [new CsrfOriginMiddleware(), AuthMiddleware::class]);
 
 // Pasamos el objeto $catalogController YA INSTANCIADO dentro del array:
 $router->get('/catalog', [$catalogController, 'index']);
@@ -118,7 +134,7 @@ $router->get('/register', static function (): string {
     return (string) ob_get_clean();
 });
 
-$renderModule = static function (string $view, string $title): string {
+$renderModule = static function (string $view, string $title, array $data = []): string {
     $viewPath = __DIR__ . '/../resources/views/modules/' . $view;
 
     if (!is_file($viewPath)) {
@@ -126,23 +142,58 @@ $renderModule = static function (string $view, string $title): string {
         return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>404 | ProfeGo</title></head><body><h1>404</h1><p>La vista solicitada no está disponible.</p></body></html>';
     }
 
+    // Convertimos el array de datos en variables reales para la vista
+    extract($data);
+    
     ob_start();
     require $viewPath;
     return (string) ob_get_clean();
 };
 
-$router->get('/dashboard', static function (array $request, ?array $authUser) use ($renderModule): string {
+$router->get('/dashboard', static function (array $request, ?array $authUser) use ($renderModule, $pdo): string {
     $role = (string) ($authUser['role'] ?? 'student');
-    $view = $role === 'tutor' || $role === 'admin'
-        ? 'dashboard/teacher.php'
-        : 'dashboard/student.php';
+    $userId = (int) ($authUser['id'] ?? $authUser['sub'] ?? 0);
+    $data = [];
 
-    return $renderModule($view, 'Dashboard | ProfeGo');
+    if ($role === 'tutor' || $role === 'admin') {
+        $view = 'dashboard/teacher.php';
+        $stmt = $pdo->prepare("
+            SELECT b.*, u.name as student_name 
+            FROM bookings b 
+            JOIN users u ON b.student_id = u.id 
+            WHERE b.tutor_id = :user_id 
+            ORDER BY b.starts_at ASC
+        ");
+        $stmt->execute([':user_id' => $userId]);
+        $data['bookings'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    } else {
+        $view = 'dashboard/student.php';
+        $stmt = $pdo->prepare("
+            SELECT b.*, u.name as tutor_name 
+            FROM bookings b 
+            JOIN users u ON b.tutor_id = u.id
+            WHERE b.student_id = :user_id 
+            ORDER BY b.starts_at ASC
+        ");
+        $stmt->execute([':user_id' => $userId]);
+        $data['bookings'] = $stmt->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    return $renderModule($view, 'Dashboard | ProfeGo', $data);
 }, [AuthMiddleware::class]);
 
 $router->get('/chat', static function () use ($renderModule): string {
+    if (session_status() === PHP_SESSION_NONE) {
+        session_start();
+    }
+
+    if (!isset($_SESSION['user_id'])) {
+        http_response_code(401);
+        return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>401 | ProfeGo</title></head><body><h1>401</h1><p>Debe iniciar sesión para acceder a esta vista.</p></body></html>';
+    }
+
     return $renderModule('chat/index.php', 'Chat | ProfeGo');
-});
+}, [AuthMiddleware::class]);
 
 $router->get('/settings', static function () use ($renderModule): string {
     return $renderModule('settings/index.php', 'Configuración | ProfeGo');
@@ -150,22 +201,28 @@ $router->get('/settings', static function () use ($renderModule): string {
 
 // --- Rutas Protegidas ---
 $router->post('/api/bookings', [$bookingController, 'store'], [
+    new CsrfOriginMiddleware(),
     AuthMiddleware::class,
 ]);
 $router->post('/api/bookings/confirm', [$bookingController, 'confirm'], [
+    new CsrfOriginMiddleware(),
     AuthMiddleware::class,
 ]);
 $router->post('/api/bookings/cancel', [$bookingController, 'cancel'], [
+    new CsrfOriginMiddleware(),
     AuthMiddleware::class,
 ]);
 
 $router->get('/api/user/profile', [AuthController::class, 'profile'], [
     AuthMiddleware::class,
-    RoleMiddleware::class
+    new RoleMiddleware([\App\Shared\Enums\UserRole::STUDENT->value, \App\Shared\Enums\UserRole::TUTOR->value, \App\Shared\Enums\UserRole::ADMIN->value]),
 ]);
 
 // --- Rutas de IA (Asistente) ---
-$router->post('/api/ai/chat', [$aiController, 'chat']);
+$router->post('/api/ai/chat', [$aiController, 'chat'], [
+    new CsrfOriginMiddleware(),
+    AuthMiddleware::class,
+]);
 $router->get('/api/ai/keywords', [$aiController, 'getKeywords']);
 
 // 6. Despachar la petición

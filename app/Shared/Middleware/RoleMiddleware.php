@@ -29,7 +29,7 @@ class RoleMiddleware
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode([
                 'status' => 'forbidden',
-                'message' => 'Acceso denegado. Tu rol [' . $user['role'] . '] no posee permisos suficientes.'
+                'message' => 'Acceso denegado.'
             ], JSON_UNESCAPED_UNICODE);
             return false;
         }
