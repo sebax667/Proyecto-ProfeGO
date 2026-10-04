@@ -20,7 +20,7 @@ if (!is_resource($process)) {
 
 usleep(1500000);
 
-function curlStatus(string $url, array $headers = []): array
+function curlStatus(string $url, array $headers = [], bool $followLocation = true): array
 {
     $options = [
         'http' => [
@@ -28,6 +28,8 @@ function curlStatus(string $url, array $headers = []): array
             'header' => $headers,
             'ignore_errors' => true,
             'timeout' => 10,
+            'follow_location' => $followLocation ? 1 : 0,
+            'max_redirects' => $followLocation ? 20 : 0,
         ],
     ];
 
@@ -52,6 +54,21 @@ $checks = [
 ];
 
 $failures = [];
+
+$home = curlStatus($baseUrl . '/', [], false);
+if ($home['status'] !== 302 || !str_contains(implode("\n", $home['headers']), 'Location: /catalog')) {
+    $failures[] = 'La ruta raíz no redirige a /catalog con HTTP 302.';
+}
+
+$webNotFound = curlStatus($baseUrl . '/missing-page');
+if ($webNotFound['status'] !== 404 || !str_contains($webNotFound['content'], 'Error 404')) {
+    $failures[] = 'La ruta web desconocida no mostró la página HTML 404.';
+}
+
+$apiNotFound = curlStatus($baseUrl . '/api/missing-page');
+if ($apiNotFound['status'] !== 404 || json_decode($apiNotFound['content'], true) === null) {
+    $failures[] = 'La ruta API desconocida no conservó la respuesta JSON 404.';
+}
 
 foreach ($checks as [$path, $label]) {
     $url = $baseUrl . $path;

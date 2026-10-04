@@ -101,6 +101,11 @@ $aiController = new AIController($aiAdapter);
 $router = new Router();
 
 // --- Rutas Públicas ---
+$router->get('/', static function (): ?string {
+    header('Location: /catalog', true, 302);
+    return null;
+});
+
 $router->post('/api/auth/register', [AuthController::class, 'handleRegister'], [new CsrfOriginMiddleware()]);
 $router->post('/api/auth/login', [AuthController::class, 'handleLogin'], [new CsrfOriginMiddleware()]);
 $router->post('/api/auth/logout', [AuthController::class, 'handleLogout'], [new CsrfOriginMiddleware(), AuthMiddleware::class]);

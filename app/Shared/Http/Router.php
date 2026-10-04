@@ -66,21 +66,29 @@ final class Router
                 }
 
                 $response = $this->callHandler($route['handler'], $authenticatedUser);
-                $this->sendResponse($response);
+                $this->sendResponse($response, $path);
                 return;
             }
 
-            $this->sendJsonResponse(404, [
-                'status' => 'error',
-                'message' => 'Ruta no encontrada',
-            ]);
+            $this->sendErrorResponse(404, $path);
         } catch (Throwable $e) {
             error_log('Router error: ' . $e->getMessage());
-            $this->sendJsonResponse(500, [
-                'status' => 'error',
-                'message' => 'Error interno del servidor.',
-            ]);
+            $path = $this->normalizePath((string) (parse_url($requestUri, PHP_URL_PATH) ?? '/'));
+            $this->sendErrorResponse(500, $path);
         }
+    }
+
+    private function sendErrorResponse(int $statusCode, string $path): void
+    {
+        if (str_starts_with($path, '/api/')) {
+            $this->sendJsonResponse($statusCode, [
+                'status' => 'error',
+                'message' => $statusCode === 404 ? 'Ruta no encontrada' : 'Error interno del servidor.',
+            ]);
+            return;
+        }
+
+        ErrorPage::send($statusCode);
     }
 
     private function matchesPath(string $requestPath, string $routePath): bool
@@ -158,7 +166,7 @@ final class Router
     /**
      * @param mixed $response
      */
-    private function sendResponse(mixed $response): void
+    private function sendResponse(mixed $response, string $path): void
     {
         if ($response === null) {
             return;
@@ -182,6 +190,11 @@ final class Router
                     'error' => 400,
                     default => 200,
                 };
+            }
+
+            if (!str_starts_with($path, '/api/') && in_array($statusCode, [401, 403, 404, 500], true)) {
+                $this->sendErrorResponse($statusCode, $path);
+                return;
             }
 
             $this->sendJsonResponse($statusCode, $payload);
