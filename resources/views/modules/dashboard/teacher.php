@@ -2,8 +2,29 @@
 
 declare(strict_types=1);
 
+$user = $user ?? ['name' => 'Usuario'];
+$escapedUserName = htmlspecialchars((string) $user['name'], ENT_QUOTES, 'UTF-8');
+$bookings = $bookings ?? [];
+$escape = static fn (string $value): string => htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+$bookingList = '';
+if ($bookings === []) {
+    $bookingList = '<p class="text-sm text-slate-500">Aún no tienes sesiones agendadas.</p>';
+}
+foreach ($bookings as $booking) {
+    $studentName = $escape((string) ($booking['student_name'] ?? 'Estudiante'));
+    $title = $escape((string) ($booking['title'] ?? 'Sesión de tutoría'));
+    $startsAt = $escape((string) ($booking['starts_at'] ?? ''));
+    $status = $escape((string) ($booking['status'] ?? ''));
+    $bookingList .= <<<HTML
+        <article class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <h3 class="font-semibold text-slate-900">{$title}</h3>
+            <p class="text-sm text-slate-600">Estudiante: {$studentName}</p>
+            <p class="text-sm text-slate-500">{$startsAt} · {$status}</p>
+        </article>
+HTML;
+}
 $pageTitle = 'Dashboard | ProfeGo';
-$pageContent = <<<'HTML'
+$pageContent = <<<HTML
 <section class="space-y-8">
     <div class="rounded-[32px] border border-slate-200 bg-gradient-to-r from-indigo-600 to-blue-500 p-6 text-white shadow-[0_28px_64px_-38px_rgba(79,70,229,0.9)] sm:p-8">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -12,7 +33,7 @@ $pageContent = <<<'HTML'
                     Panel del tutor
                 </p>
                 <h1 class="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
-                    Gestiona tus tutorías con claridad
+                    Hola, {$escapedUserName}
                 </h1>
                 <p class="mt-3 max-w-2xl text-base text-indigo-100">
                     Consulta sesiones, ajusta tu disponibilidad y mantén tu perfil listo para nuevas oportunidades.
@@ -70,35 +91,7 @@ $pageContent = <<<'HTML'
             </div>
 
             <div class="mt-6 space-y-3">
-                <div class="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <div>
-                        <p class="font-semibold text-slate-900">Matemáticas - Álgebra</p>
-                        <p class="text-sm text-slate-500">Hoy • 16:00 - 17:00 • Virtual</p>
-                    </div>
-                    <span class="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700">
-                        Confirmada
-                    </span>
-                </div>
-
-                <div class="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <div>
-                        <p class="font-semibold text-slate-900">Programación - PHP</p>
-                        <p class="text-sm text-slate-500">Mañana • 10:00 - 11:30 • Presencial</p>
-                    </div>
-                    <span class="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-700">
-                        Pendiente
-                    </span>
-                </div>
-
-                <div class="flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50 p-4">
-                    <div>
-                        <p class="font-semibold text-slate-900">Biología - Repaso general</p>
-                        <p class="text-sm text-slate-500">Viernes • 14:00 - 15:00 • Virtual</p>
-                    </div>
-                    <span class="rounded-full bg-indigo-100 px-2.5 py-1 text-xs font-semibold text-indigo-700">
-                        En revisión
-                    </span>
-                </div>
+                {$bookingList}
             </div>
         </div>
 

@@ -179,12 +179,12 @@ Database::closeConnection();
 
 $pdo = Database::getConnection();
 $version = (int) $pdo->query('PRAGMA user_version')->fetchColumn();
-$assert($version === 8, 'La versión final de migración no es 8.');
+$assert($version === 9, 'La versión final de migración no es 9.');
 $appliedVersions = array_map(
     'intval',
     $pdo->query('SELECT version FROM schema_migrations ORDER BY version')->fetchAll(PDO::FETCH_COLUMN)
 );
-$assert($appliedVersions === range(1, 8), 'El historial no incluye todas las migraciones.');
+$assert($appliedVersions === range(1, 9), 'El historial no incluye todas las migraciones.');
 
 $users = $pdo->query('SELECT id, email, password FROM users ORDER BY id')->fetchAll(PDO::FETCH_ASSOC);
 $assert(count($users) === 3, 'No se consolidaron los correos duplicados.');
@@ -380,5 +380,5 @@ $pdo = null;
 echo json_encode([
     'status' => 'ok',
     'message' => 'Migraciones incrementales, integridad, reglas y seguridad verificadas.',
-    'version' => 8,
+    'version' => 9,
 ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), PHP_EOL;

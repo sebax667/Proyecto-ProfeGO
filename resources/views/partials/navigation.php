@@ -4,7 +4,8 @@
 
         <div class="hidden items-center gap-6 md:flex">
             <a href="/catalog" class="text-sm font-medium text-slate-600 hover:text-slate-900">Explorar</a>
-            <a href="/catalog" class="text-sm font-medium text-slate-600 hover:text-slate-900">Tutors</a>
+            <a href="/catalog" class="text-sm font-medium text-slate-600 hover:text-slate-900">Tutores</a>
+            <a href="/chat" class="text-sm font-medium text-slate-600 hover:text-slate-900">Chat</a>
             <a href="#ai-chat-widget" class="text-sm font-medium text-slate-600 hover:text-slate-900">Asistente IA</a>
         </div>
 

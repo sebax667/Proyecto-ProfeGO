@@ -20,9 +20,11 @@ class UserRepository
     public function create(array $data): int
     {
         $email = $this->normalizeEmail((string) ($data['email'] ?? ''));
+        $termsAcceptedAt = $data['terms_accepted_at'] ?? null;
+        $termsVersion = $data['terms_version'] ?? null;
 
         $stmt = $this->db->prepare(
-            'INSERT INTO users (name, email, password, role) VALUES (:name, :email, :password, :role)'
+            'INSERT INTO users (name, email, password, role, terms_accepted_at, terms_version) VALUES (:name, :email, :password, :role, :terms_accepted_at, :terms_version)'
         );
 
         try {
@@ -31,6 +33,8 @@ class UserRepository
                 ':email' => $email,
                 ':password' => (string) ($data['password'] ?? ''),
                 ':role' => (string) ($data['role'] ?? 'student'),
+                ':terms_accepted_at' => $termsAcceptedAt !== null && $termsAcceptedAt !== '' ? (string) $termsAcceptedAt : null,
+                ':terms_version' => $termsVersion !== null && $termsVersion !== '' ? (string) $termsVersion : null,
             ]);
 
             $id = $this->db->lastInsertId();
@@ -42,6 +46,22 @@ class UserRepository
 
             throw $e;
         }
+    }
+
+    public function findById(int $id): ?array
+    {
+        $stmt = $this->db->prepare(
+            'SELECT id, name, email, role, avatar_url, is_active, created_at, updated_at FROM users WHERE id = :id LIMIT 1'
+        );
+        $stmt->execute([':id' => $id]);
+
+        $user = $stmt->fetch(PDO::FETCH_ASSOC);
+        if ($user === false) {
+            return null;
+        }
+
+        unset($user['password']);
+        return $user;
     }
 
     public function findByEmail(string $email): ?array

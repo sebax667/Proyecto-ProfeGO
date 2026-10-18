@@ -37,6 +37,8 @@ class AuthService
             'email' => $email,
             'password' => $hashedPassword,
             'role' => $dto->role->value,
+            'terms_accepted_at' => gmdate('Y-m-d\TH:i:s\Z'),
+            'terms_version' => 'v1',
         ]);
 
         if ($created <= 0) {
@@ -90,11 +92,19 @@ class AuthService
             ];
         }
 
+        $configuredTtl = getenv('JWT_TTL');
+        $parsedTtl = is_string($configuredTtl)
+            ? filter_var($configuredTtl, FILTER_VALIDATE_INT)
+            : false;
+        $ttl = is_int($parsedTtl) && $parsedTtl >= 300 && $parsedTtl <= 2592000
+            ? $parsedTtl
+            : 28800;
         $token = $this->jwtService->generateToken([
             'user_id' => $user['id'],
+            'name' => $user['name'],
             'email' => $user['email'],
             'role' => $user['role'],
-        ]);
+        ], $ttl);
         $claims = $this->jwtService->validateToken($token);
         if ($claims === null) {
             throw new \RuntimeException('No se pudo validar el token recién generado.');
@@ -116,6 +126,7 @@ class AuthService
                 'role' => $user['role'],
             ],
             'token' => $token,
+            'session_expires_at' => (int) $claims['exp'],
         ];
     }
 
