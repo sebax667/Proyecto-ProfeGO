@@ -30,6 +30,25 @@ Las acciones de terceros del workflow están fijadas a commits SHA. Los workflow
 - `VIDEO_PROVIDER` — `mock`, `googlemeet` o `teams` según el adaptador activo.
 - `MAIL_*` — configuración SMTP para notificaciones.
 - `DB_PATH` — ruta absoluta a la base SQLite para pruebas y entornos aislados.
+- `AUTO_MIGRATE` — `1` (predeterminado) permite a la primera petición aplicar migraciones pendientes; `0` impide que las peticiones web migren y responde HTTP 503 hasta que se ejecute el comando CLI.
+
+## Base de datos SQLite y migraciones
+
+El esquema se administra con migraciones versionadas en `database/migrations/` y
+`PRAGMA user_version`. Por compatibilidad, `AUTO_MIGRATE=1` mantiene la actualización
+automática en la primera petición que encuentre cambios pendientes. Para desplegar de
+forma controlada, configura `AUTO_MIGRATE=0`, ejecuta el comando de migración desde la
+línea de comandos y vuelve a habilitarlo solo después de verificar la base:
+
+```bash
+php scripts/migrate.php --status
+php scripts/migrate.php
+```
+
+`--status` es de solo lectura. El comando de ejecución aplica las migraciones aunque
+`AUTO_MIGRATE=0` y comprueba `integrity_check` y `foreign_key_check`. Consulta
+[`docs/database/MIGRACIONES.md`](docs/database/MIGRACIONES.md) para el procedimiento
+recomendado de respaldo, actualización y recuperación.
 
 ## Stack tecnológico
 
@@ -47,11 +66,13 @@ composer install
 cp .env.example .env
 npm ci
 npm run build:css
+php scripts/migrate.php --status
 php tests/auth_integration.php
 php tests/ai_integration.php
 php tests/booking_integration.php
 php tests/booking_authz_integration.php
 php tests/migration_integration.php
+php tests/migration_runtime.php
 php tests/security_http_smoke.php
 ```
 

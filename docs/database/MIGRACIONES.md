@@ -1,11 +1,49 @@
 # Migraciones de base de datos
 
-La base de datos se actualiza automáticamente desde `app/Shared/Database/Database.php`
-en la primera petición que abre una conexión después del despliegue. Cada versión se
-registra en `schema_migrations` y en `PRAGMA user_version`; las migraciones se ejecutan
-en orden y dentro de transacciones. Las versiones que reconstruyen tablas desactivan
-las claves foráneas antes de abrir la transacción y verifican `PRAGMA foreign_key_check`
-antes de confirmarla.
+La base se administra con migraciones versionadas desde
+`app/Shared/Database/Database.php`. Cada versión se registra en `schema_migrations` y
+`PRAGMA user_version`; las migraciones se ejecutan en orden y dentro de transacciones
+`BEGIN IMMEDIATE`. Las versiones que reconstruyen tablas desactivan las claves
+foráneas antes de abrir la transacción y verifican `PRAGMA foreign_key_check` antes
+de confirmarla.
+
+En una base cuya versión ya alcanza la versión máxima disponible, el arranque solo
+consulta metadatos y el historial. No repite escrituras de `schema_migrations` ni
+intenta crear tablas existentes. El historial se completa únicamente cuando una
+lectura detecta filas faltantes. Antes de aplicar cada migración, se vuelve a leer
+`user_version` dentro del bloqueo de escritura inmediato; así una segunda petición
+que esperó a otra puede omitir la versión que ya quedó aplicada.
+
+Por defecto, `AUTO_MIGRATE=1` conserva la migración automática en la primera petición
+con cambios pendientes. Con `AUTO_MIGRATE=0`, las peticiones web no migran, registran
+el motivo en el log y responden HTTP 503 genérico si la base está pendiente. Si no hay
+migraciones pendientes, la aplicación funciona normalmente. El comando CLI siempre
+puede ejecutar migraciones aunque `AUTO_MIGRATE=0`.
+
+```sh
+php scripts/migrate.php --status
+php scripts/migrate.php
+```
+
+`--status` imprime la ruta de la base, `user_version`, la versión máxima y las
+migraciones pendientes sin modificar la base. La ejecución normal informa la versión
+final y valida `integrity_check` y `foreign_key_check`; cualquier error termina con
+código distinto de cero.
+
+### Despliegue recomendado
+
+Con el servidor todavía sin tráfico de la nueva versión:
+
+1. Crear el respaldo: `sudo -n /usr/local/bin/profego-backup`.
+2. Configurar `AUTO_MIGRATE=0` en el entorno web.
+3. Consultar estado: `php scripts/migrate.php --status`.
+4. Aplicar una sola vez: `php scripts/migrate.php`.
+5. Confirmar `user_version: 8`, `integrity_check: ok` y `foreign_key_check: sin errores` en la salida.
+6. Corregir permisos: `sudo -n /usr/local/bin/profego-fix-perms`.
+7. Desplegar/recargar PHP-FPM y habilitar tráfico. Se puede mantener `AUTO_MIGRATE=0` como control de despliegue o volver a `1` para conservar el comportamiento automático por defecto.
+
+Si el despliegue debe revertirse, restaura la copia de seguridad completa; no se crean
+migraciones de reversa.
 
 ## Orden y transformaciones
 
@@ -50,5 +88,8 @@ revertir cambios de esquema borrando tablas o manipulando `user_version`.
 
 `tests/migration_integration.php` crea una base temporal con datos del esquema antiguo,
 aplica y repite las migraciones, y comprueba IDs/datos, restricciones, integridad y
-revocación de sesiones. El resto de scripts de `tests/` verifica regresiones de la
-aplicación; `npm run build:css` comprueba el build de estilos.
+revocación de sesiones. `tests/migration_runtime.php` comprueba que una base ya
+migrada no genera escrituras por petición, que conexiones concurrentes omiten una
+versión ya aplicada y que el interruptor/CLI funcionan correctamente. El resto de
+scripts de `tests/` verifica regresiones de la aplicación; `npm run build:css`
+comprueba el build de estilos.
