@@ -35,12 +35,15 @@ código distinto de cero.
 Con el servidor todavía sin tráfico de la nueva versión:
 
 1. Crear el respaldo: `sudo -n /usr/local/bin/profego-backup`.
-2. Configurar `AUTO_MIGRATE=0` en el entorno web.
-3. Consultar estado: `php scripts/migrate.php --status`.
-4. Aplicar una sola vez: `php scripts/migrate.php`.
-5. Confirmar `user_version: 8`, `integrity_check: ok` y `foreign_key_check: sin errores` en la salida.
-6. Corregir permisos: `sudo -n /usr/local/bin/profego-fix-perms`.
-7. Desplegar/recargar PHP-FPM y habilitar tráfico. Se puede mantener `AUTO_MIGRATE=0` como control de despliegue o volver a `1` para conservar el comportamiento automático por defecto.
+2. Configurar `AUTO_MIGRATE=0` en `.env` antes de actualizar el checkout.
+3. Consultar estado: `php scripts/migrate.php --status`; en esta actualización se exige `user_version: 2`.
+4. Actualizar código y dependencias; consultar de nuevo el estado y confirmar versión inicial 2 y máxima 9.
+5. Aplicar una sola vez: `php scripts/migrate.php`.
+6. Confirmar `user_version: 9`, `integrity_check: ok` y `foreign_key_check: sin errores` en la salida y que no haya migraciones pendientes.
+7. Corregir permisos: `sudo -n /usr/local/bin/profego-fix-perms`.
+8. Recargar PHP-FPM y habilitar tráfico. Se recomienda mantener `AUTO_MIGRATE=0` como control de despliegue.
+
+El pipeline de producción sigue este orden mediante los helpers instalados en el VPS. `JWT_TTL` es opcional; por defecto la sesión dura 28.800 segundos (8 horas). Las sesiones existentes se invalidan con la migración de autenticación, por lo que todos los usuarios deberán iniciar sesión de nuevo.
 
 Si el despliegue debe revertirse, restaura la copia de seguridad completa; no se crean
 migraciones de reversa.
@@ -57,6 +60,7 @@ migraciones de reversa.
 | 006 | `database/migrations/006_availability_constraints.php` | Añade validación de intervalo e índice por tutor. Las filas inválidas se conservan y desactivan (`is_active = 0`); `end_at` se ajusta al segundo siguiente al inicio para que la fila cumpla el nuevo CHECK. Informa el número transformado. |
 | 007 | `database/migrations/007_reviews_notifications.php` | Asegura tablas, índices y triggers de reseñas. Solo permite reseñar reservas completadas y mantiene `rating_avg` y `reviews_count` al insertar, actualizar o borrar una reseña. Añade a `notifications` los campos opcionales `user_id`, `booking_id`, `subject` y `body` que faltaban, sin eliminar el `payload` histórico. |
 | 008 | `database/migrations/008_auth_session_indexes.php` | Asegura `auth_sessions` y `login_attempts`, sus índices y los campos opcionales de IP y agente de usuario. Las sesiones persistentes registran/revocan el `jti`; el middleware rechaza tokens sin sesión activa. Cinco fallos por correo e IP dentro de 15 minutos bloquean el acceso durante la ventana, con respuesta genérica. |
+| 009 | `database/migrations/009_terms_acceptance.php` | Añade el registro obligatorio de aceptación de términos durante el alta de usuarios. |
 
 ## Diferencias respecto a la guía de diseño
 

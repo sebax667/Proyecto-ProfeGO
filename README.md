@@ -15,7 +15,7 @@ Las credenciales reales de tutor y estudiante se generan desde el seeder y deben
 1. El repositorio se valida en GitHub Actions.
 2. El pipeline de CI exige Composer, lint PHP, shellcheck equivalente con `bash -n`, compilación de CSS y ejecución de los scripts de prueba.
 3. El despliegue automático solo continúa tras CI exitoso en `main`; el despacho manual también está limitado a `main` y requiere el entorno protegido y secrets de servidor.
-4. El job de despliegue ejecuta la actualización del repositorio en el VPS, reinstala dependencias y recarga PHP-FPM.
+4. El job de despliegue respalda la base, desactiva la migración automática, comprueba la versión inicial, actualiza el repositorio, aplica y valida las migraciones, y recarga PHP-FPM.
 5. El smoke test exige HTTP 403/404 para `.env` y la base SQLite y valida los encabezados de seguridad de `/catalog`.
 
 Las acciones de terceros del workflow están fijadas a commits SHA. Los workflows no se ejecutan desde esta guía; el despliegue remoto pertenece exclusivamente al pipeline protegido.
@@ -25,6 +25,7 @@ Las acciones de terceros del workflow están fijadas a commits SHA. Los workflow
 - `APP_ENV` — `local`, `production` u otro valor operativo.
 - `APP_DEBUG` — controla la salida de depuración.
 - `JWT_SECRET` — secreto mínimo de 32 caracteres.
+- `JWT_TTL` — duración del token y la sesión en segundos (opcional; predeterminado: 28.800; acepta 300–2.592.000 y usa 28.800 si el valor no es válido).
 - `AI_PROVIDER` — `mock` o `openai`.
 - `OPENAI_*` — credenciales del proveedor OpenAI.
 - `VIDEO_PROVIDER` — `mock`, `googlemeet` o `teams` según el adaptador activo.

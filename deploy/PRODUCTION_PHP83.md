@@ -59,10 +59,24 @@ runuser -u www-data -- sqlite3 "$database" ".backup '$backup_dir/pre-deploy-$(da
 El directorio `/etc/sudoers.d` debe contener una regla instalada con `visudo -f /etc/sudoers.d/profego-deploy`. Reemplaza `DEPLOY_USER` por el usuario SSH real; el contenido de la línea debe ser exactamente:
 
 ```sudoers
-DEPLOY_USER ALL=(root) NOPASSWD: /usr/local/bin/profego-backup, /usr/local/bin/profego-fix-perms, /usr/bin/systemctl reload php8.3-fpm
+DEPLOY_USER ALL=(root) NOPASSWD: /usr/local/bin/profego-backup, /usr/local/bin/profego-set-auto-migrate-off, /usr/local/bin/profego-migration-status, /usr/local/bin/profego-migrate, /usr/local/bin/profego-fix-perms, /usr/bin/systemctl reload php8.3-fpm
 ```
 
 Valida la regla con `visudo -cf /etc/sudoers.d/profego-deploy`. El ejecutable `/usr/local/bin/profego-fix-perms` también debe estar instalado en el servidor y ser invocable por el usuario SSH mediante la regla anterior. El despliegue usa `sudo -n`, así que cualquier comando no autorizado falla sin solicitar contraseña.
+
+### Preparación única para el despliegue controlado
+
+El servidor debe tener instalados los helpers raíz que fijan `AUTO_MIGRATE=0` y ejecutan el CLI como `www-data`. Tras fusionar el cambio del pipeline, instálalos sin cambiar el checkout que sirve la aplicación:
+
+```bash
+cd /var/www/profego
+git fetch --prune origin
+git show origin/main:deploy/install_deploy_helpers.sh | sudo env APP_DIR=/var/www/profego bash -s
+```
+
+Añade entonces la regla sudoers de arriba y valida con `visudo -cf /etc/sudoers.d/profego-deploy`. El pipeline respaldará la base, fijará `AUTO_MIGRATE=0` antes de actualizar el checkout, exigirá `user_version: 2`, aplicará 003–009 y comprobará `user_version: 9`, `integrity_check: ok` y `foreign_key_check: sin errores`. Si falla una precondición, aborta sin aplicar las migraciones.
+
+Si GitHub Actions informa que no conoce la clave del host, valida la huella ED25519 del VPS por un canal confiable y actualiza el secret `VPS_KNOWN_HOSTS`; no desactives `StrictHostKeyChecking`.
 
 ## Smoke test
 
