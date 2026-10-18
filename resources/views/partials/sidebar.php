@@ -14,7 +14,7 @@
             <span>Tutorías</span>
         </a>
 
-        <a class="profego-sidebar__link" href="#ai-chat-widget">
+        <a class="profego-sidebar__link" href="/chat">
             <span class="flex h-8 w-8 items-center justify-center rounded-xl bg-white/5 text-base">◌</span>
             <span>Chat</span>
         </a>

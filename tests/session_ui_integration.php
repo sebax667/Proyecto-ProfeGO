@@ -151,6 +151,7 @@ try {
     $session = $pdo->prepare('SELECT user_id, expires_at FROM auth_sessions WHERE jti = :jti');
     $session->execute([':jti' => $claims['jti']]);
     $sessionRow = $session->fetch(PDO::FETCH_ASSOC);
+    $session->closeCursor();
     $assert(
         is_array($sessionRow),
         'No se encontró la sesión correspondiente al jti del JWT. JWT=' . $claims['jti']
@@ -175,6 +176,88 @@ try {
     $assert(str_contains($dashboard['body'], '&lt;script&gt;alert(1)&lt;/script&gt;'), 'El dashboard no escapó el nombre como HTML.');
     $assert(!str_contains($dashboard['body'], '<script>alert(1)</script>'), 'El nombre creó un elemento script ejecutable en el dashboard.');
 
+    $tutorUser = $pdo->prepare('INSERT INTO users (name, email, password, role) VALUES (:name, :email, :password, \'tutor\')');
+    $tutorUser->execute([
+        ':name' => 'Tutor de prueba',
+        ':email' => 'tutor-' . bin2hex(random_bytes(4)) . '@example.test',
+        ':password' => password_hash('TutorPass123', PASSWORD_ARGON2ID),
+    ]);
+    $tutorUser->closeCursor();
+    $tutorUserId = (int) $pdo->lastInsertId();
+    $tutorProfile = $pdo->prepare(
+        'INSERT INTO tutor_profiles (user_id, headline, bio, hourly_rate, rating_avg, reviews_count, modality, city, subjects)
+         VALUES (:user_id, :headline, :bio, :hourly_rate, :rating_avg, :reviews_count, :modality, :city, :subjects)'
+    );
+    $tutorProfile->execute([
+        ':user_id' => $tutorUserId,
+        ':headline' => 'Tutor de ciencias',
+        ':bio' => 'Perfil de prueba.',
+        ':hourly_rate' => 70,
+        ':rating_avg' => 4.8,
+        ':reviews_count' => 12,
+        ':modality' => 'virtual',
+        ':city' => 'Bogotá',
+        ':subjects' => '["Ciencias"]',
+    ]);
+    $tutorProfile->closeCursor();
+    $tutorId = (int) $pdo->lastInsertId();
+    $startAt = (new DateTimeImmutable('now', new DateTimeZone('UTC')))
+        ->modify('+2 days')
+        ->setTime(14, 0)
+        ->format('Y-m-d\TH:i:s\Z');
+    $endAt = (new DateTimeImmutable($startAt))->modify('+1 hour')->format('Y-m-d\TH:i:s\Z');
+    $availability = $pdo->prepare(
+        'INSERT INTO tutor_availabilities (tutor_id, start_at, end_at, is_active)
+         VALUES (:tutor_id, :start_at, :end_at, 1)'
+    );
+    $availability->execute([
+        ':tutor_id' => $tutorId,
+        ':start_at' => $startAt,
+        ':end_at' => $endAt,
+    ]);
+    $availability->closeCursor();
+
+    $catalog = $request($baseUrl . '/catalog');
+    $assert($catalog['status'] === 200, 'El catálogo no cargó.');
+    $assert(str_contains($catalog['body'], '/tutor?id=' . $tutorId), 'La tarjeta no enlazó al perfil real del tutor.');
+    $assert(str_contains($catalog['body'], 'data-action="book"'), 'La tarjeta no ofrece la acción de agendar.');
+    $assert(str_contains($catalog['body'], 'src="/assets/js/catalog.js"'), 'El catálogo no carga el manejador externo.');
+    $assert(str_contains($catalog['body'], 'id="ai-chat-widget"'), 'El ancla al widget de chat no existe.');
+    $catalogScript = $request($baseUrl . '/assets/js/catalog.js');
+    $assert($catalogScript['status'] === 200, 'El manejador externo del catálogo no se sirve.');
+    $assert(str_contains($catalogScript['body'], "api('/api/bookings'"), 'El agendamiento no usa la ruta existente /api/bookings.');
+    $assert(!str_contains($catalogScript['body'], '/api/tutors/availability'), 'El catálogo llama a la ruta inexistente de disponibilidad.');
+    $aiScript = $request($baseUrl . '/assets/js/ai-widget.js');
+    $assert($aiScript['status'] === 200, 'El widget del asistente no carga su script externo.');
+
+    $tutorPage = $request($baseUrl . '/tutor?id=' . $tutorId);
+    $assert($tutorPage['status'] === 200, 'El enlace de perfil no abrió la ruta /tutor.');
+    $assert(str_contains($tutorPage['body'], 'Tutor de ciencias'), 'El perfil no mostró los datos del tutor.');
+    $missingTutorPage = $request($baseUrl . '/tutor?id=999999');
+    $assert($missingTutorPage['status'] === 404, 'Un perfil inexistente no devolvió 404.');
+
+    $chatPage = $request($baseUrl . '/chat', 'GET', null, ['Cookie: ' . $cookieHeader]);
+    $assert($chatPage['status'] === 200, 'El enlace protegido /chat no abrió la vista del asistente.');
+    $assert(str_contains($chatPage['body'], '/catalog#ai-chat-widget'), 'La vista de chat no enlazó al widget existente.');
+
+    $booking = $request(
+        $baseUrl . '/api/bookings',
+        'POST',
+        json_encode([
+            'tutor_id' => $tutorId,
+            'starts_at' => $startAt,
+            'ends_at' => $endAt,
+        ], JSON_THROW_ON_ERROR),
+        [...$headers, 'Cookie: ' . $cookieHeader]
+    );
+    $bookingPayload = json_decode($booking['body'], true);
+    $assert($booking['status'] === 201, 'La acción de agendar no usó el endpoint existente: ' . $booking['body']);
+    $assert(
+        (int) ($bookingPayload['booking']['student_id'] ?? 0) === (int) $storedUser['id']
+            && (float) ($bookingPayload['booking']['hourly_rate'] ?? 0) === 70.0,
+        'El servidor no derivó estudiante y tarifa desde la sesión y el perfil: ' . $booking['body']
+    );
+
     $externalRedirect = $request($baseUrl . '/login?redirect=https%3A%2F%2Fevil.example');
     $assert(
         $externalRedirect['status'] === 200
@@ -192,6 +275,9 @@ try {
     proc_close($process);
     $user = null;
     $session = null;
+    $tutorUser = null;
+    $tutorProfile = null;
+    $availability = null;
     $pdo = null;
     foreach ([$databasePath, $databasePath . '-wal', $databasePath . '-shm', $logPath, $errorPath] as $temporaryFile) {
         if (is_file($temporaryFile)) {

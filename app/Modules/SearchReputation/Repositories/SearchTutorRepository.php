@@ -100,27 +100,55 @@ class SearchTutorRepository
         $stmt->execute($params);
         $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        return array_map(function (array $row): TutorProfileDTO {
-            $userDto = UserDTO::fromArray([
-                'id' => $row['user_id'],
-                'name' => $row['name'],
-                'email' => $row['email'],
-                'role' => $row['role'],
-                'avatar_url' => $row['avatar_url'],
-                'phone' => $row['phone'],
-            ]);
+        return array_map(fn (array $row): TutorProfileDTO => $this->mapRow($row), $rows);
+    }
 
-            return TutorProfileDTO::fromArray([
-                'id' => $row['id'],
-                'headline' => $row['headline'],
-                'bio' => $row['bio'],
-                'hourly_rate' => $row['hourly_rate'],
-                'rating_avg' => $row['rating_avg'],
-                'reviews_count' => $row['reviews_count'],
-                'modality' => $row['modality'],
-                'city' => $row['city'],
-                'subjects' => is_string($row['subjects']) ? json_decode($row['subjects'], true) : ($row['subjects'] ?? []),
-            ], $userDto);
-        }, $rows);
+    public function findById(int $id): ?TutorProfileDTO
+    {
+        if ($id <= 0) {
+            return null;
+        }
+
+        $stmt = $this->pdo->prepare(
+            'SELECT tp.id, tp.headline, tp.bio, tp.hourly_rate, tp.rating_avg,
+                    tp.reviews_count, tp.modality, tp.city, tp.subjects,
+                    u.id AS user_id, u.name, u.email, u.role, u.avatar_url, u.phone
+             FROM tutor_profiles tp
+             INNER JOIN users u ON u.id = tp.user_id
+             WHERE tp.id = :id
+             LIMIT 1'
+        );
+        $stmt->execute([':id' => $id]);
+        $row = $stmt->fetch(PDO::FETCH_ASSOC);
+
+        return $row === false ? null : $this->mapRow($row);
+    }
+
+    private function mapRow(array $row): TutorProfileDTO
+    {
+        $userDto = UserDTO::fromArray([
+            'id' => $row['user_id'],
+            'name' => $row['name'],
+            'email' => $row['email'],
+            'role' => $row['role'],
+            'avatar_url' => $row['avatar_url'],
+            'phone' => $row['phone'],
+        ]);
+
+        $subjects = is_string($row['subjects'] ?? null)
+            ? json_decode($row['subjects'], true)
+            : ($row['subjects'] ?? []);
+
+        return TutorProfileDTO::fromArray([
+            'id' => $row['id'],
+            'headline' => $row['headline'],
+            'bio' => $row['bio'],
+            'hourly_rate' => $row['hourly_rate'],
+            'rating_avg' => $row['rating_avg'],
+            'reviews_count' => $row['reviews_count'],
+            'modality' => $row['modality'],
+            'city' => $row['city'],
+            'subjects' => is_array($subjects) ? $subjects : [],
+        ], $userDto);
     }
 }

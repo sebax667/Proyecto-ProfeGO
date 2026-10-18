@@ -10,7 +10,7 @@
         </div>
 
         <div class="flex items-center gap-3">
-            <button type="button" class="flex h-11 w-11 items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-600 transition hover:bg-slate-100" aria-label="Ver notificaciones">
+            <button type="button" disabled title="Notificaciones próximamente" class="flex h-11 w-11 cursor-not-allowed items-center justify-center rounded-full border border-slate-200 bg-slate-50 text-slate-400" aria-label="Notificaciones próximamente">
                 🔔
             </button>
 

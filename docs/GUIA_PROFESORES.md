@@ -148,18 +148,7 @@ Debe ser un enlace, no un botón con JavaScript:
 </article>
 ```
 
-```js
-document.addEventListener('click', (e) => {
-  const book = e.target.closest('[data-action="book"]');
-  if (book) { openBooking(Number(book.dataset.tutorId)); return; }
-  const card = e.target.closest('.tutor-card');
-  if (card && !e.target.closest('a, button')) {
-    window.location.assign('/tutor?id=' + encodeURIComponent(card.dataset.tutorId));
-  }
-});
-```
-
-Modal de agendamiento con `<dialog id="booking-dialog">`: al abrir, pide `/api/tutors/availability?tutor_id=ID`, muestra los horarios y envía `POST /api/bookings` con `{tutor_id, starts_at, ends_at, subject_id, level_id}`. El servidor ignora cualquier `student_id` o precio.
+El perfil usa la ruta real `/tutor?id=ID`. El diálogo de agendamiento deja que el estudiante elija inicio y fin y envía `POST /api/bookings` con `{tutor_id, starts_at, ends_at}`. **No se consulta `/api/tutors/availability`: esa ruta no existe.** El servidor comprueba la disponibilidad, calcula el precio y obtiene el estudiante de la sesión; nunca se envían `student_id` ni precios desde el navegador. La tarjeta y el diálogo se enlazan con delegación de eventos en `public/assets/js/catalog.js`.
 
 ### 2.3 Chat
 
@@ -167,44 +156,11 @@ Modal de agendamiento con `<dialog id="booking-dialog">`: al abrir, pide `/api/t
 <a href="/chat" aria-label="Chat">...</a>
 ```
 
-Si el módulo aún está en desarrollo, enlaza a una vista borrador con el aviso "Próximamente".
+El enlace `/chat` lleva a la vista protegida del asistente. Desde ahí, SmartMatch enlaza a `#ai-chat-widget` en el catálogo; el widget usa los endpoints existentes `/api/ai/keywords` y `/api/ai/chat` y carga su comportamiento desde un script externo.
 
 ### 2.4 Campana de notificaciones
 
-```html
-<button id="bell-btn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Notificaciones">
-  <span id="bell-badge" hidden></span>
-</button>
-<div id="bell-panel" role="menu" hidden></div>
-```
-
-```js
-import { api } from '/assets/js/app.js';
-const btn = document.getElementById('bell-btn');
-const panel = document.getElementById('bell-panel');
-const badge = document.getElementById('bell-badge');
-
-async function refresh() {
-  const data = await api('/api/notifications');
-  const items = data.notifications ?? [];
-  panel.replaceChildren(...items.map((n) => {
-    const li = document.createElement('div');
-    li.textContent = n.title + ' · ' + n.body;       // textContent: nunca innerHTML
-    return li;
-  }));
-  const unread = items.filter((n) => !n.read_at).length;
-  badge.hidden = unread === 0;
-  badge.textContent = String(unread);
-}
-btn.addEventListener('click', async () => {
-  const open = panel.hidden;
-  panel.hidden = !open;
-  btn.setAttribute('aria-expanded', String(open));
-  if (open) { await refresh(); await api('/api/notifications/read', { method: 'POST', body: JSON.stringify({ all: true }) }); }
-});
-document.addEventListener('click', (e) => { if (!e.target.closest('#bell-btn, #bell-panel')) { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); } });
-refresh();
-```
+Los endpoints `/api/notifications` y `/api/notifications/read` todavía no están registrados. La campana queda deshabilitada y no realiza solicitudes; no se debe añadir el panel interactivo hasta que exista el backend.
 
 ---
 

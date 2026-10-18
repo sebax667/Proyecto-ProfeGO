@@ -100,6 +100,7 @@ $router->post('/api/auth/logout', [AuthController::class, 'handleLogout'], [new 
 
 // Pasamos el objeto $catalogController YA INSTANCIADO dentro del array:
 $router->get('/catalog', [$catalogController, 'index']);
+$router->get('/tutor', [$catalogController, 'show']);
 
 $router->get('/login', static function (): string {
     $viewPath = __DIR__ . '/../resources/views/modules/auth/login.php';

@@ -121,7 +121,7 @@ $hasFilters = !empty($_GET);
                 <?php if (!empty($tutors)): ?>
                     <div class="grid gap-5 md:grid-cols-2 xl:grid-cols-3">
                         <?php foreach ($tutors as $tutor): ?>
-                            <article class="group flex h-full flex-col justify-between rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_22px_48px_-32px_rgba(15,23,42,0.45)] transition hover:-translate-y-0.5 hover:shadow-[0_28px_60px_-30px_rgba(79,70,229,0.35)]">
+                            <article id="tutor-<?= (int) $tutor->id ?>" class="tutor-card group flex h-full flex-col justify-between rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_22px_48px_-32px_rgba(15,23,42,0.45)] transition hover:-translate-y-0.5 hover:shadow-[0_28px_60px_-30px_rgba(79,70,229,0.35)]" data-tutor-id="<?= (int) $tutor->id ?>">
                                 <div>
                                     <div class="flex items-start gap-3">
                                         <img
@@ -131,7 +131,9 @@ $hasFilters = !empty($_GET);
                                         >
                                         <div class="min-w-0">
                                             <h3 class="text-lg font-black text-slate-900">
+                                                <a href="/tutor?id=<?= (int) $tutor->id ?>" class="hover:text-indigo-600">
                                                 <?= htmlspecialchars($tutor->user->name) ?>
+                                                </a>
                                             </h3>
                                             <p class="mt-1 text-sm text-slate-500">
                                                 <?= htmlspecialchars($tutor->city ?? 'Remoto') ?>
@@ -180,9 +182,20 @@ $hasFilters = !empty($_GET);
                                         </div>
                                     </div>
 
-                                    <button type="button" class="profego-button mt-4 w-full">
-                                        Ver perfil
-                                    </button>
+                                    <div class="mt-4 grid gap-2">
+                                        <a href="/tutor?id=<?= (int) $tutor->id ?>" class="profego-button-secondary w-full text-center">
+                                            Ver perfil
+                                        </a>
+                                        <button
+                                            type="button"
+                                            class="profego-button w-full"
+                                            data-action="book"
+                                            data-tutor-id="<?= (int) $tutor->id ?>"
+                                            data-tutor-name="<?= htmlspecialchars($tutor->user->name, ENT_QUOTES, 'UTF-8') ?>"
+                                        >
+                                            Agendar
+                                        </button>
+                                    </div>
                                 </div>
                             </article>
                         <?php endforeach; ?>
@@ -202,7 +215,32 @@ $hasFilters = !empty($_GET);
         </div>
     </main>
 
+    <dialog id="booking-dialog" class="w-full max-w-lg rounded-3xl p-0 shadow-2xl" aria-labelledby="booking-title">
+        <form id="booking-form" action="/api/bookings" method="post" class="space-y-5 p-6">
+            <div>
+                <h2 id="booking-title" class="text-2xl font-black text-slate-900">Solicitar una sesión</h2>
+                <p id="booking-tutor-name" class="mt-1 text-sm text-slate-600"></p>
+            </div>
+            <input type="hidden" name="tutor_id">
+            <div>
+                <label for="booking-starts-at" class="profego-label">Inicio</label>
+                <input id="booking-starts-at" name="starts_at" type="datetime-local" required class="profego-input">
+            </div>
+            <div>
+                <label for="booking-ends-at" class="profego-label">Fin</label>
+                <input id="booking-ends-at" name="ends_at" type="datetime-local" required class="profego-input">
+            </div>
+            <p class="text-xs text-slate-500">La disponibilidad se valida al enviar la solicitud.</p>
+            <p id="booking-feedback" class="profego-form-error" role="alert" hidden></p>
+            <div class="flex gap-3">
+                <button type="button" class="profego-button-secondary flex-1" data-action="close-booking">Cerrar</button>
+                <button type="submit" class="profego-button flex-1">Enviar solicitud</button>
+            </div>
+        </form>
+    </dialog>
+
     <?php include __DIR__ . '/../../components/ai-widget.php'; ?>
     <?php include __DIR__ . '/../../partials/footer.php'; ?>
+    <script type="module" src="/assets/js/catalog.js"></script>
 </body>
 </html>
