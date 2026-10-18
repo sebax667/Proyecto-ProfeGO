@@ -56,6 +56,27 @@ final class BookingRepository
         return (int) $value;
     }
 
+    public function tutorOffersCatalog(int $tutorId, ?int $subjectId, ?int $levelId): bool
+    {
+        $conditions = ['tutor_id = :tutor_id'];
+        $params = [':tutor_id' => $tutorId];
+        if ($subjectId !== null) {
+            $conditions[] = 'subject_id = :subject_id';
+            $params[':subject_id'] = $subjectId;
+        }
+        if ($levelId !== null) {
+            $conditions[] = 'level_id = :level_id';
+            $params[':level_id'] = $levelId;
+        }
+
+        $stmt = $this->pdo->prepare(
+            'SELECT 1 FROM tutor_subjects WHERE ' . implode(' AND ', $conditions) . ' LIMIT 1'
+        );
+        $stmt->execute($params);
+
+        return $stmt->fetchColumn() !== false;
+    }
+
     public function hasTutorAvailability(int $tutorId, string $startsAt, string $endsAt): bool
     {
         $stmt = $this->pdo->prepare(
@@ -121,6 +142,8 @@ final class BookingRepository
             'INSERT INTO bookings (
                 tutor_id,
                 student_id,
+                subject_id,
+                level_id,
                 starts_at,
                 ends_at,
                 status,
@@ -131,10 +154,13 @@ final class BookingRepository
                 meeting_type,
                 meeting_id,
                 meeting_url,
-                created_at
+                created_at,
+                updated_at
             ) VALUES (
                 :tutor_id,
                 :student_id,
+                :subject_id,
+                :level_id,
                 :starts_at,
                 :ends_at,
                 :status,
@@ -145,6 +171,7 @@ final class BookingRepository
                 :meeting_type,
                 :meeting_id,
                 :meeting_url,
+                datetime("now"),
                 datetime("now")
             )'
         );
@@ -152,6 +179,8 @@ final class BookingRepository
         $stmt->execute([
             ':tutor_id' => $dto->tutorId,
             ':student_id' => $dto->studentId,
+            ':subject_id' => $dto->subjectId,
+            ':level_id' => $dto->levelId,
             ':starts_at' => $dto->startsAt,
             ':ends_at' => $dto->endsAt,
             ':status' => BookingStatus::PENDING->value,
@@ -186,7 +215,7 @@ final class BookingRepository
     public function updateStatus(int $bookingId, BookingStatus $status): bool
     {
         $stmt = $this->pdo->prepare(
-            'UPDATE bookings SET status = :status WHERE id = :booking_id'
+            'UPDATE bookings SET status = :status, updated_at = CURRENT_TIMESTAMP WHERE id = :booking_id'
         );
 
         return $stmt->execute([
@@ -200,14 +229,16 @@ final class BookingRepository
         $notes = $reason ?? 'Reserva cancelada por el usuario';
 
         $stmt = $this->pdo->prepare(
-            'UPDATE bookings SET status = :status, notes = :notes WHERE id = :booking_id'
+            'UPDATE bookings
+             SET status = :status, notes = :notes, cancel_reason = :reason, updated_at = CURRENT_TIMESTAMP
+             WHERE id = :booking_id'
         );
 
         return $stmt->execute([
             ':status' => BookingStatus::CANCELLED->value,
             ':notes' => $notes,
+            ':reason' => $reason,
             ':booking_id' => $bookingId,
         ]);
     }
 }
-

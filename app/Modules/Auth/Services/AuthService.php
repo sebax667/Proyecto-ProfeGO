@@ -62,10 +62,19 @@ class AuthService
     public function login(string $email, string $password): array
     {
         $normalizedEmail = strtolower(trim($email));
+        $ip = $this->requestIp();
+        if ($this->userRepository->isLoginBlocked($normalizedEmail, $ip)) {
+            usleep(200000);
+            return [
+                'status' => 'unauthorized',
+                'message' => 'Credenciales de acceso inválidas.'
+            ];
+        }
+
         $user = $this->userRepository->findByEmail($normalizedEmail);
         $passwordValid = false;
 
-        if ($user !== null && is_string($user['password'] ?? '')) {
+        if ($user !== null && (int) ($user['is_active'] ?? 1) === 1 && is_string($user['password'] ?? '')) {
             $passwordValid = password_verify($password, $user['password']);
             if ($passwordValid && password_needs_rehash($user['password'], PASSWORD_ARGON2ID)) {
                 $user['password'] = password_hash($password, PASSWORD_ARGON2ID);
@@ -73,6 +82,7 @@ class AuthService
         }
 
         if (!$user || !$passwordValid) {
+            $this->userRepository->recordLoginAttempt($normalizedEmail, $ip, false);
             usleep(200000);
             return [
                 'status' => 'unauthorized',
@@ -85,6 +95,16 @@ class AuthService
             'email' => $user['email'],
             'role' => $user['role'],
         ]);
+        $claims = $this->jwtService->validateToken($token);
+        if ($claims === null) {
+            throw new \RuntimeException('No se pudo validar el token recién generado.');
+        }
+        $this->userRepository->createAuthSession(
+            (int) $user['id'],
+            (string) $claims['jti'],
+            (int) $claims['exp']
+        );
+        $this->userRepository->recordLoginAttempt($normalizedEmail, $ip, true);
 
         return [
             'status' => 'success',
@@ -97,5 +117,23 @@ class AuthService
             ],
             'token' => $token,
         ];
+    }
+
+    public function revokeToken(string $token): void
+    {
+        $claims = $this->jwtService->validateToken($token);
+        if ($claims !== null) {
+            $jti = (string) ($claims['jti'] ?? '');
+            if ($jti !== '') {
+                $this->userRepository->revokeAuthSession($jti);
+            }
+        }
+    }
+
+    private function requestIp(): string
+    {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+
+        return is_string($ip) && $ip !== '' ? substr($ip, 0, 45) : 'unknown';
     }
 }

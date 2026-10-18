@@ -76,22 +76,9 @@ class AuthController
 
     public function handleLogout(array $request): array
     {
-        if (session_status() === PHP_SESSION_NONE) {
-            session_start();
-        }
-
         $token = (string) ($_COOKIE['profego_token'] ?? '');
         if ($token !== '') {
-            $tokenJti = null;
-            $parts = explode('.', $token);
-            if (count($parts) === 3) {
-                $payload = json_decode(base64_decode(strtr($parts[1], '-_', '+/')), true);
-                $tokenJti = is_array($payload) ? ((string) ($payload['jti'] ?? '')) : '';
-            }
-
-            if ($tokenJti !== '') {
-                $_SESSION['revoked_tokens'][$tokenJti] = true;
-            }
+            $this->authService->revokeToken($token);
         }
 
         setcookie('profego_token', '', [

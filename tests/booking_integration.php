@@ -10,6 +10,7 @@ use App\Modules\Bookings\Services\BookingService;
 use App\Modules\Integrations\Adapters\MockVideoAdapter;
 
 $dbPath = sys_get_temp_dir() . '/sistema_app_booking_test_' . uniqid('', true) . '.sqlite';
+putenv('DB_PATH=' . $dbPath);
 $pdo = new PDO('sqlite:' . $dbPath);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 
@@ -51,6 +52,8 @@ $pdo->exec("CREATE TABLE bookings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     tutor_id INTEGER NOT NULL,
     student_id INTEGER NOT NULL,
+    subject_id INTEGER,
+    level_id INTEGER,
     starts_at TEXT NOT NULL,
     ends_at TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'cancelled', 'completed')),
@@ -61,7 +64,9 @@ $pdo->exec("CREATE TABLE bookings (
     meeting_type TEXT DEFAULT 'video',
     meeting_id TEXT,
     meeting_url TEXT,
+    cancel_reason TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (tutor_id) REFERENCES tutor_profiles(id) ON DELETE CASCADE,
     FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
 )");

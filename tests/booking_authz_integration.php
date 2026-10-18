@@ -9,6 +9,7 @@ use App\Modules\Bookings\Repositories\BookingRepository;
 use App\Modules\Bookings\Services\BookingService;
 
 $basePath = sys_get_temp_dir() . '/profego_booking_authz_' . uniqid('', true) . '.sqlite';
+putenv('DB_PATH=' . $basePath);
 $pdo = new PDO('sqlite:' . $basePath);
 $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
 $pdo->exec('PRAGMA foreign_keys = ON');
@@ -50,6 +51,8 @@ $pdo->exec("CREATE TABLE bookings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     tutor_id INTEGER NOT NULL,
     student_id INTEGER NOT NULL,
+    subject_id INTEGER,
+    level_id INTEGER,
     starts_at TEXT NOT NULL,
     ends_at TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'pending',
@@ -60,7 +63,9 @@ $pdo->exec("CREATE TABLE bookings (
     meeting_type TEXT DEFAULT 'video',
     meeting_id TEXT,
     meeting_url TEXT,
+    cancel_reason TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (tutor_id) REFERENCES tutor_profiles(id) ON DELETE CASCADE,
     FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
 )");

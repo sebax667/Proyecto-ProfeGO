@@ -38,6 +38,11 @@ class Database
         return self::$instance;
     }
 
+    public static function closeConnection(): void
+    {
+        self::$instance = null;
+    }
+
     private static function migrate(PDO $pdo): void
     {
         $pdo->exec('CREATE TABLE IF NOT EXISTS users (
@@ -77,10 +82,24 @@ class Database
             }
 
             $migration = require $file;
+            $requiresForeignKeysOff = is_array($migration)
+                && ($migration['foreign_keys'] ?? null) === false;
+            $up = is_array($migration) ? ($migration['up'] ?? null) : $migration;
+            if ($requiresForeignKeysOff) {
+                $pdo->exec('PRAGMA foreign_keys = OFF');
+            }
+
             $pdo->beginTransaction();
             try {
-                if (is_callable($migration)) {
-                    $migration($pdo);
+                if (is_callable($up)) {
+                    $up($pdo);
+                }
+
+                if ($requiresForeignKeysOff) {
+                    $violations = $pdo->query('PRAGMA foreign_key_check')->fetchAll(PDO::FETCH_ASSOC);
+                    if ($violations !== []) {
+                        throw new \RuntimeException('La migración dejó referencias foráneas inválidas.');
+                    }
                 }
 
                 $pdo->exec('PRAGMA user_version = ' . $version);
@@ -93,6 +112,10 @@ class Database
                 }
 
                 throw $exception;
+            } finally {
+                if ($requiresForeignKeysOff) {
+                    $pdo->exec('PRAGMA foreign_keys = ON');
+                }
             }
 
             $currentVersion = $version;
