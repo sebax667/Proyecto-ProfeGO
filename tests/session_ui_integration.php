@@ -174,6 +174,10 @@ try {
     $dashboard = $request($baseUrl . '/dashboard', 'GET', null, ['Cookie: ' . $cookieHeader]);
     $assert($dashboard['status'] === 200, 'El dashboard protegido no cargó con la cookie.');
     $assert(str_contains($dashboard['body'], '&lt;script&gt;alert(1)&lt;/script&gt;'), 'El dashboard no escapó el nombre como HTML.');
+    $assert(
+        substr_count($dashboard['body'], 'Hola, &lt;script&gt;alert(1)&lt;/script&gt;') === 2,
+        'El encabezado y el contenido del dashboard no muestran el nombre real escapado.'
+    );
     $assert(!str_contains($dashboard['body'], '<script>alert(1)</script>'), 'El nombre creó un elemento script ejecutable en el dashboard.');
 
     $tutorUser = $pdo->prepare('INSERT INTO users (name, email, password, role) VALUES (:name, :email, :password, \'tutor\')');
