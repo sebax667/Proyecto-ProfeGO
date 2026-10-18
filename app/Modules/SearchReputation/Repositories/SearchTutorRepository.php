@@ -18,6 +18,15 @@ class SearchTutorRepository
      */
     public function search(SearchFiltersDTO $filters): array
     {
+        if (($filters->subjectId !== null && $filters->subjectId <= 0)
+            || ($filters->levelId !== null && $filters->levelId <= 0)) {
+            throw new \InvalidArgumentException('Los filtros de materia y nivel deben ser enteros positivos.');
+        }
+        if ($filters->subject !== null
+            && (trim($filters->subject) === '' || mb_strlen($filters->subject, 'UTF-8') > 100)) {
+            throw new \InvalidArgumentException('El filtro de materia debe contener entre 1 y 100 caracteres.');
+        }
+
         $sql = "
             SELECT 
                 tp.id, tp.headline, tp.bio, tp.hourly_rate, tp.rating_avg, 
@@ -55,9 +64,24 @@ class SearchTutorRepository
             $params[':city'] = $filters->city;
         }
 
-        if ($filters->subject) {
-            $sql .= " AND tp.subjects LIKE :subject";
-            $params[':subject'] = '%' . $filters->subject . '%';
+        if ($filters->subject !== null || $filters->subjectId !== null || $filters->levelId !== null) {
+            $sql .= " AND EXISTS (
+                SELECT 1
+                FROM tutor_subjects ts
+                INNER JOIN subjects s ON s.id = ts.subject_id
+                WHERE ts.tutor_id = tp.id";
+            if ($filters->subjectId !== null) {
+                $sql .= ' AND ts.subject_id = :subject_id';
+                $params[':subject_id'] = $filters->subjectId;
+            } elseif ($filters->subject !== null) {
+                $sql .= ' AND s.name = :subject COLLATE NOCASE';
+                $params[':subject'] = $filters->subject;
+            }
+            if ($filters->levelId !== null) {
+                $sql .= ' AND ts.level_id = :level_id';
+                $params[':level_id'] = $filters->levelId;
+            }
+            $sql .= ')';
         }
 
         if ($filters->minRating !== null) {

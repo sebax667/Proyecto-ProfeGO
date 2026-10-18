@@ -41,6 +41,10 @@ class BookingService
         if (!$this->bookingRepository->studentExists($dto->studentId)) {
             throw new BookingException('El estudiante indicado no existe.');
         }
+        if (($dto->subjectId !== null || $dto->levelId !== null)
+            && !$this->bookingRepository->tutorOffersCatalog($dto->tutorId, $dto->subjectId, $dto->levelId)) {
+            throw new BookingException('El tutor no ofrece esa materia y nivel.');
+        }
 
         $startDate = new DateTimeImmutable($dto->startsAt);
         $endDate = new DateTimeImmutable($dto->endsAt);
@@ -63,6 +67,8 @@ class BookingService
             title: $dto->title,
             notes: $dto->notes,
             meetingType: $dto->meetingType,
+            subjectId: $dto->subjectId,
+            levelId: $dto->levelId,
         );
 
         if (!$this->bookingRepository->hasTutorAvailability($dto->tutorId, $dto->startsAt, $dto->endsAt)) {

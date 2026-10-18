@@ -19,6 +19,8 @@ readonly class CreateBookingDTO
         public ?string $title = null,
         public ?string $notes = null,
         public ?string $meetingType = null,
+        public ?int $subjectId = null,
+        public ?int $levelId = null,
     ) {}
 
     public static function fromRequest(array $request): self
@@ -30,7 +32,12 @@ readonly class CreateBookingDTO
         $hourlyRate = isset($request['hourly_rate']) ? (float) $request['hourly_rate'] : 0.0;
         $title = isset($request['title']) ? trim((string) $request['title']) : null;
         $notes = isset($request['notes']) ? trim((string) $request['notes']) : null;
-        $meetingType = isset($request['meeting_type']) ? trim((string) $request['meeting_type']) : null;
+        if (isset($request['meeting_type']) && !is_string($request['meeting_type'])) {
+            throw new InvalidArgumentException('El campo meeting_type debe ser texto.');
+        }
+        $meetingType = isset($request['meeting_type']) ? trim($request['meeting_type']) : null;
+        $subjectId = self::optionalPositiveId($request, 'subject_id');
+        $levelId = self::optionalPositiveId($request, 'level_id');
 
         if ($tutorId <= 0) {
             throw new InvalidArgumentException('El campo tutor_id es obligatorio y debe ser válido.');
@@ -59,6 +66,9 @@ readonly class CreateBookingDTO
         if ($hourlyRate <= 0) {
             throw new InvalidArgumentException('El campo hourly_rate debe ser mayor a cero.');
         }
+        if ($meetingType !== null && !in_array($meetingType, ['video', 'presencial'], true)) {
+            throw new InvalidArgumentException('El campo meeting_type debe ser video o presencial.');
+        }
 
         return new self(
             tutorId: $tutorId,
@@ -69,7 +79,21 @@ readonly class CreateBookingDTO
             title: $title !== '' ? $title : null,
             notes: $notes !== '' ? $notes : null,
             meetingType: $meetingType !== '' ? $meetingType : null,
+            subjectId: $subjectId,
+            levelId: $levelId,
         );
+    }
+
+    private static function optionalPositiveId(array $request, string $key): ?int
+    {
+        if (!array_key_exists($key, $request) || $request[$key] === null || $request[$key] === '') {
+            return null;
+        }
+        if (filter_var($request[$key], FILTER_VALIDATE_INT) === false || (int) $request[$key] <= 0) {
+            throw new InvalidArgumentException('El campo ' . $key . ' debe ser un entero positivo.');
+        }
+
+        return (int) $request[$key];
     }
 
     private static function normalizeToUtc(string $value): DateTimeImmutable
