@@ -166,10 +166,11 @@ $router->get('/dashboard', static function (array $request, ?array $authUser) us
     if ($role === 'tutor' || $role === 'admin') {
         $view = 'dashboard/teacher.php';
         $stmt = $pdo->prepare("
-            SELECT b.*, u.name as student_name 
+            SELECT b.*, u.name as student_name
             FROM bookings b 
-            JOIN users u ON b.student_id = u.id 
-            WHERE b.tutor_id = :user_id 
+            JOIN users u ON b.student_id = u.id
+            JOIN tutor_profiles tp ON tp.id = b.tutor_id
+            WHERE tp.user_id = :user_id
             ORDER BY b.starts_at ASC
         ");
         $stmt->execute([':user_id' => $userId]);
@@ -177,9 +178,10 @@ $router->get('/dashboard', static function (array $request, ?array $authUser) us
     } else {
         $view = 'dashboard/student.php';
         $stmt = $pdo->prepare("
-            SELECT b.*, u.name as tutor_name 
+            SELECT b.*, u.name as tutor_name
             FROM bookings b 
-            JOIN users u ON b.tutor_id = u.id
+            JOIN tutor_profiles tp ON tp.id = b.tutor_id
+            JOIN users u ON u.id = tp.user_id
             WHERE b.student_id = :user_id 
             ORDER BY b.starts_at ASC
         ");

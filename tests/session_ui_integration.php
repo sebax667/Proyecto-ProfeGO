@@ -10,6 +10,9 @@ $logPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'profego_session_ui_' . bi
 $errorPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'profego_session_ui_' . bin2hex(random_bytes(8)) . '.err';
 $ttl = 2473;
 $pdo = null;
+$invalidTtlProcess = null;
+$invalidTtlLogPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'profego_session_ui_invalid_ttl_' . bin2hex(random_bytes(8)) . '.log';
+$invalidTtlErrorPath = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'profego_session_ui_invalid_ttl_' . bin2hex(random_bytes(8)) . '.err';
 putenv('APP_ENV=testing');
 putenv('AUTO_MIGRATE=1');
 putenv('DB_PATH=' . $databasePath);
@@ -149,6 +152,67 @@ try {
     $assert(is_array($claims) && isset($claims['exp'], $claims['jti']), 'No se pudo leer expiración y jti del JWT.');
     $assert((int) $claims['exp'] - time() <= $ttl && (int) $claims['exp'] - time() >= $ttl - 2, 'El JWT no usó JWT_TTL personalizado.');
 
+    $invalidTtlSocket = stream_socket_server('tcp://127.0.0.1:0', $invalidTtlSocketError, $invalidTtlSocketMessage);
+    $assert(is_resource($invalidTtlSocket), 'No se pudo reservar un puerto para probar JWT_TTL inválido.');
+    $invalidTtlAddress = stream_socket_get_name($invalidTtlSocket, false);
+    fclose($invalidTtlSocket);
+    $invalidTtlPort = (int) substr((string) strrchr((string) $invalidTtlAddress, ':'), 1);
+    $invalidTtlEnvironment = getenv();
+    $invalidTtlEnvironment['JWT_TTL'] = 'abc';
+    $invalidTtlProcess = proc_open(
+        [PHP_BINARY, '-S', '127.0.0.1:' . $invalidTtlPort, '-t', $root . '/public'],
+        [
+            0 => ['pipe', 'r'],
+            1 => ['file', $invalidTtlLogPath, 'a'],
+            2 => ['file', $invalidTtlErrorPath, 'a'],
+        ],
+        $invalidTtlPipes,
+        $root,
+        $invalidTtlEnvironment
+    );
+    $assert(is_resource($invalidTtlProcess), 'No se pudo iniciar el servidor para probar JWT_TTL inválido.');
+    fclose($invalidTtlPipes[0]);
+    $invalidTtlBaseUrl = 'http://127.0.0.1:' . $invalidTtlPort;
+    $invalidTtlReady = false;
+    for ($attempt = 0; $attempt < 50; $attempt++) {
+        if ($request($invalidTtlBaseUrl . '/login')['status'] === 200) {
+            $invalidTtlReady = true;
+            break;
+        }
+        usleep(100000);
+    }
+    $assert($invalidTtlReady, 'El servidor con JWT_TTL inválido no estuvo disponible.');
+    $invalidTtlHeaders = $headers;
+    $invalidTtlHeaders[0] = 'Origin: ' . $invalidTtlBaseUrl;
+    $invalidTtlLogin = $request(
+        $invalidTtlBaseUrl . '/api/auth/login',
+        'POST',
+        json_encode(['email' => $email, 'password' => $password], JSON_THROW_ON_ERROR),
+        $invalidTtlHeaders
+    );
+    $assert(
+        $invalidTtlLogin['status'] === 200,
+        'JWT_TTL inválido provocó un fallo de login: HTTP ' . $invalidTtlLogin['status'] . ' ' . $invalidTtlLogin['body']
+    );
+    $invalidTtlCookie = '';
+    foreach ($invalidTtlLogin['headers'] as $header) {
+        if (preg_match('/^Set-Cookie:\s*profego_token=([^;]+)/i', $header, $matches) === 1) {
+            $invalidTtlCookie = $matches[1];
+            break;
+        }
+    }
+    $assert($invalidTtlCookie !== '', 'El login con JWT_TTL inválido no emitió cookie.');
+    $invalidTtlParts = explode('.', $invalidTtlCookie);
+    $invalidTtlPayload = strtr($invalidTtlParts[1], '-_', '+/');
+    $invalidTtlPayload .= str_repeat('=', (4 - strlen($invalidTtlPayload) % 4) % 4);
+    $invalidTtlClaims = json_decode((string) base64_decode($invalidTtlPayload, true), true);
+    $assert(
+        is_array($invalidTtlClaims)
+            && (int) $invalidTtlClaims['exp'] - time() <= 28800
+            && (int) $invalidTtlClaims['exp'] - time() >= 28798,
+        'JWT_TTL no válido no usó el TTL de respaldo de 28800 segundos.'
+    );
+
     $session = $pdo->prepare('SELECT user_id, expires_at FROM auth_sessions WHERE jti = :jti');
     $session->execute([':jti' => $claims['jti']]);
     $sessionRow = $session->fetch(PDO::FETCH_ASSOC);
@@ -182,9 +246,10 @@ try {
     $assert(!str_contains($dashboard['body'], '<script>alert(1)</script>'), 'El nombre creó un elemento script ejecutable en el dashboard.');
 
     $tutorUser = $pdo->prepare('INSERT INTO users (name, email, password, role) VALUES (:name, :email, :password, \'tutor\')');
+    $tutorEmail = 'tutor-' . bin2hex(random_bytes(4)) . '@example.test';
     $tutorUser->execute([
         ':name' => 'Tutor de prueba',
-        ':email' => 'tutor-' . bin2hex(random_bytes(4)) . '@example.test',
+        ':email' => $tutorEmail,
         ':password' => password_hash('TutorPass123', PASSWORD_ARGON2ID),
     ]);
     $tutorUser->closeCursor();
@@ -206,6 +271,34 @@ try {
     ]);
     $tutorProfile->closeCursor();
     $tutorId = (int) $pdo->lastInsertId();
+    $assert($tutorUserId !== $tutorId, 'El fixture no separa el id de usuario del id de perfil del tutor.');
+
+    $otherTutorUser = $pdo->prepare(
+        'INSERT INTO users (name, email, password, role) VALUES (:name, :email, :password, \'tutor\')'
+    );
+    $otherTutorEmail = 'other-tutor-' . bin2hex(random_bytes(4)) . '@example.test';
+    $otherTutorUser->execute([
+        ':name' => 'Otro Tutor',
+        ':email' => $otherTutorEmail,
+        ':password' => password_hash('TutorPass123', PASSWORD_ARGON2ID),
+    ]);
+    $otherTutorUser->closeCursor();
+    $otherTutorUserId = (int) $pdo->lastInsertId();
+    $tutorProfile->execute([
+        ':user_id' => $otherTutorUserId,
+        ':headline' => 'Tutor de historia',
+        ':bio' => 'Segundo perfil de prueba.',
+        ':hourly_rate' => 80,
+        ':rating_avg' => 4.5,
+        ':reviews_count' => 5,
+        ':modality' => 'virtual',
+        ':city' => 'Medellín',
+        ':subjects' => '["Historia"]',
+    ]);
+    $tutorProfile->closeCursor();
+    $otherTutorId = (int) $pdo->lastInsertId();
+    $assert($otherTutorUserId !== $otherTutorId, 'El segundo tutor no tiene ids de usuario y perfil diferenciados.');
+
     $startAt = (new DateTimeImmutable('now', new DateTimeZone('UTC')))
         ->modify('+2 days')
         ->setTime(14, 0)
@@ -221,6 +314,95 @@ try {
         ':end_at' => $endAt,
     ]);
     $availability->closeCursor();
+
+    $dashboardBookings = $pdo->prepare(
+        'INSERT INTO bookings (tutor_id, student_id, starts_at, ends_at, status, hourly_rate, total_price, title)
+         VALUES (:tutor_id, :student_id, :starts_at, :ends_at, :status, :hourly_rate, :total_price, :title)'
+    );
+    $dashboardStartAt = (new DateTimeImmutable($startAt))->modify('+2 days')->format('Y-m-d\TH:i:s\Z');
+    $dashboardEndAt = (new DateTimeImmutable($dashboardStartAt))->modify('+1 hour')->format('Y-m-d\TH:i:s\Z');
+    foreach ([
+        [$tutorId, 'PRIVATE_TO_FIRST_TUTOR'],
+        [$otherTutorId, 'PRIVATE_TO_SECOND_TUTOR'],
+    ] as [$bookingTutorId, $title]) {
+        $dashboardBookings->execute([
+            ':tutor_id' => $bookingTutorId,
+            ':student_id' => (int) $storedUser['id'],
+            ':starts_at' => $dashboardStartAt,
+            ':ends_at' => $dashboardEndAt,
+            ':status' => 'pending',
+            ':hourly_rate' => 70,
+            ':total_price' => 70,
+            ':title' => $title,
+        ]);
+    }
+    $dashboardBookings->closeCursor();
+
+    $firstTutorLogin = $request(
+        $baseUrl . '/api/auth/login',
+        'POST',
+        json_encode(['email' => $tutorEmail, 'password' => 'TutorPass123'], JSON_THROW_ON_ERROR),
+        $headers
+    );
+    $assert($firstTutorLogin['status'] === 200, 'El primer tutor no pudo iniciar sesión.');
+    $firstTutorCookie = '';
+    foreach ($firstTutorLogin['headers'] as $header) {
+        if (preg_match('/^Set-Cookie:\s*profego_token=([^;]+)/i', $header, $matches) === 1) {
+            $firstTutorCookie = 'profego_token=' . $matches[1];
+            break;
+        }
+    }
+    $assert($firstTutorCookie !== '', 'El primer tutor no recibió cookie de sesión.');
+    $firstTutorDashboard = $request(
+        $baseUrl . '/dashboard',
+        'GET',
+        null,
+        ['Cookie: ' . $firstTutorCookie]
+    );
+    $assert(
+        str_contains($firstTutorDashboard['body'], 'PRIVATE_TO_FIRST_TUTOR')
+            && !str_contains($firstTutorDashboard['body'], 'PRIVATE_TO_SECOND_TUTOR'),
+        'El primer tutor vio reservas ajenas o no vio la reserva de su perfil.'
+    );
+
+    $secondTutorLogin = $request(
+        $baseUrl . '/api/auth/login',
+        'POST',
+        json_encode(['email' => $otherTutorEmail, 'password' => 'TutorPass123'], JSON_THROW_ON_ERROR),
+        $headers
+    );
+    $assert($secondTutorLogin['status'] === 200, 'El segundo tutor no pudo iniciar sesión.');
+    $secondTutorCookie = '';
+    foreach ($secondTutorLogin['headers'] as $header) {
+        if (preg_match('/^Set-Cookie:\s*profego_token=([^;]+)/i', $header, $matches) === 1) {
+            $secondTutorCookie = 'profego_token=' . $matches[1];
+            break;
+        }
+    }
+    $assert($secondTutorCookie !== '', 'El segundo tutor no recibió cookie de sesión.');
+    $secondTutorDashboard = $request(
+        $baseUrl . '/dashboard',
+        'GET',
+        null,
+        ['Cookie: ' . $secondTutorCookie]
+    );
+    $assert(
+        str_contains($secondTutorDashboard['body'], 'PRIVATE_TO_SECOND_TUTOR')
+            && !str_contains($secondTutorDashboard['body'], 'PRIVATE_TO_FIRST_TUTOR'),
+        'El segundo tutor vio reservas ajenas o no vio la reserva de su perfil.'
+    );
+
+    $studentDashboard = $request(
+        $baseUrl . '/dashboard',
+        'GET',
+        null,
+        ['Cookie: ' . $cookieHeader]
+    );
+    $assert(
+        str_contains($studentDashboard['body'], 'Tutor de prueba')
+            && str_contains($studentDashboard['body'], 'Otro Tutor'),
+        'El dashboard del estudiante no resolvió los nombres mediante tutor_profiles.'
+    );
 
     $catalog = $request($baseUrl . '/catalog');
     $assert($catalog['status'] === 200, 'El catálogo no cargó.');
@@ -276,15 +458,29 @@ try {
         'message' => 'Registro, sesión, perfil protegido, expiración, XSS y redirect verificados.',
     ], JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE), PHP_EOL;
 } finally {
+    if (is_resource($invalidTtlProcess)) {
+        proc_terminate($invalidTtlProcess);
+        proc_close($invalidTtlProcess);
+    }
     proc_terminate($process);
     proc_close($process);
     $user = null;
     $session = null;
     $tutorUser = null;
     $tutorProfile = null;
+    $otherTutorUser = null;
+    $dashboardBookings = null;
     $availability = null;
     $pdo = null;
-    foreach ([$databasePath, $databasePath . '-wal', $databasePath . '-shm', $logPath, $errorPath] as $temporaryFile) {
+    foreach ([
+        $databasePath,
+        $databasePath . '-wal',
+        $databasePath . '-shm',
+        $logPath,
+        $errorPath,
+        $invalidTtlLogPath,
+        $invalidTtlErrorPath,
+    ] as $temporaryFile) {
         if (is_file($temporaryFile)) {
             unlink($temporaryFile);
         }

@@ -92,7 +92,13 @@ class AuthService
             ];
         }
 
-        $ttl = (int) (getenv('JWT_TTL') ?: 28800);
+        $configuredTtl = getenv('JWT_TTL');
+        $parsedTtl = is_string($configuredTtl)
+            ? filter_var($configuredTtl, FILTER_VALIDATE_INT)
+            : false;
+        $ttl = is_int($parsedTtl) && $parsedTtl >= 300 && $parsedTtl <= 2592000
+            ? $parsedTtl
+            : 28800;
         $token = $this->jwtService->generateToken([
             'user_id' => $user['id'],
             'name' => $user['name'],
