@@ -54,6 +54,80 @@ class UserRepository
         return $user ?: null;
     }
 
+    public function isLoginBlocked(string $email, string $ip): bool
+    {
+        $stmt = $this->db->prepare(
+            "SELECT COUNT(*) FROM login_attempts
+             WHERE email = :email COLLATE NOCASE
+               AND ip = :ip
+               AND succeeded = 0
+               AND created_at >= datetime('now', '-15 minutes')"
+        );
+        $stmt->execute([
+            ':email' => $this->normalizeEmail($email),
+            ':ip' => $ip,
+        ]);
+
+        return (int) $stmt->fetchColumn() >= 5;
+    }
+
+    public function recordLoginAttempt(string $email, string $ip, bool $succeeded): void
+    {
+        $stmt = $this->db->prepare(
+            'INSERT INTO login_attempts (email, ip, succeeded) VALUES (:email, :ip, :succeeded)'
+        );
+        $stmt->execute([
+            ':email' => $this->normalizeEmail($email),
+            ':ip' => $ip,
+            ':succeeded' => $succeeded ? 1 : 0,
+        ]);
+    }
+
+    public function createAuthSession(int $userId, string $jti, int $expiresAt): void
+    {
+        $stmt = $this->db->prepare(
+            'INSERT INTO auth_sessions (user_id, jti, expires_at, ip, user_agent)
+             VALUES (:user_id, :jti, :expires_at, :ip, :user_agent)'
+        );
+        $stmt->execute([
+            ':user_id' => $userId,
+            ':jti' => $jti,
+            ':expires_at' => gmdate('Y-m-d\TH:i:s\Z', $expiresAt),
+            ':ip' => $this->requestIp(),
+            ':user_agent' => substr((string) ($_SERVER['HTTP_USER_AGENT'] ?? ''), 0, 512),
+        ]);
+    }
+
+    public function revokeAuthSession(string $jti): void
+    {
+        $stmt = $this->db->prepare(
+            'UPDATE auth_sessions SET revoked_at = CURRENT_TIMESTAMP
+             WHERE jti = :jti AND revoked_at IS NULL'
+        );
+        $stmt->execute([':jti' => $jti]);
+    }
+
+    public function isAuthSessionActive(string $jti): bool
+    {
+        $stmt = $this->db->prepare(
+            "SELECT 1 FROM auth_sessions
+             WHERE jti = :jti
+               AND revoked_at IS NULL
+               AND datetime(expires_at) > datetime('now')
+             LIMIT 1"
+        );
+        $stmt->execute([':jti' => $jti]);
+
+        return $stmt->fetchColumn() !== false;
+    }
+
+    private function requestIp(): string
+    {
+        $ip = $_SERVER['REMOTE_ADDR'] ?? '';
+
+        return is_string($ip) && $ip !== '' ? substr($ip, 0, 45) : 'unknown';
+    }
+
     private function normalizeEmail(string $email): string
     {
         return strtolower(trim($email));

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Shared\Middleware;
 
 use App\Shared\Security\JwtService;
+use App\Modules\Auth\Repositories\UserRepository;
 
 class AuthMiddleware
 {
@@ -39,10 +40,9 @@ class AuthMiddleware
             return ['error' => true];
         }
 
-        $revokedTokens = $_SESSION['revoked_tokens'] ?? [];
         $jti = (string) ($payload['jti'] ?? '');
-        if ($jti !== '' && isset($revokedTokens[$jti])) {
-            $this->denyAccess('Acceso denegado. Sesión cerrada.');
+        if ($jti === '' || !(new UserRepository())->isAuthSessionActive($jti)) {
+            $this->denyAccess('Acceso denegado. Sesión inválida o cerrada.');
             return ['error' => true];
         }
 
