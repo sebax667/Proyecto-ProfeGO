@@ -91,6 +91,8 @@ run_as_app_user composer install \
     --optimize-autoloader \
     --no-interaction
 
+APP_DIR="${APP_DIR}" bash "${APP_DIR}/deploy/install_deploy_helpers.sh"
+
 if command -v systemctl >/dev/null 2>&1; then
     systemctl reload "${PHP_FPM_SERVICE}" 2>/dev/null || systemctl restart "${PHP_FPM_SERVICE}"
     systemctl reload nginx
