@@ -14,6 +14,12 @@ final class Router
      */
     private array $routes = [];
 
+    public static function sendServiceUnavailable(string $requestUri): void
+    {
+        $path = (string) (parse_url($requestUri, PHP_URL_PATH) ?? '/');
+        (new self())->sendErrorResponse(503, $path);
+    }
+
     public function get(string $path, array|callable $handler, array $middlewares = []): void
     {
         $this->addRoute('GET', $path, $handler, $middlewares);
@@ -83,7 +89,11 @@ final class Router
         if (str_starts_with($path, '/api/')) {
             $this->sendJsonResponse($statusCode, [
                 'status' => 'error',
-                'message' => $statusCode === 404 ? 'Ruta no encontrada' : 'Error interno del servidor.',
+                'message' => match ($statusCode) {
+                    404 => 'Ruta no encontrada',
+                    503 => 'Servicio temporalmente no disponible.',
+                    default => 'Error interno del servidor.',
+                },
             ]);
             return;
         }

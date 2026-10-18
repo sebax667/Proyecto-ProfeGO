@@ -5,32 +5,9 @@ declare(strict_types=1);
 require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . '/../app/Support/helpers.php';
 
-if (is_file(__DIR__ . '/../.env')) {
-    $environmentLines = file(__DIR__ . '/../.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-    if ($environmentLines === false) {
-        throw new RuntimeException('No se pudo leer el archivo de entorno.');
-    }
+use App\Shared\Config\Environment;
 
-    foreach ($environmentLines as $line) {
-        $line = trim($line);
-        if ($line === '' || str_starts_with($line, '#') || !str_contains($line, '=')) {
-            continue;
-        }
-
-        [$name, $value] = explode('=', $line, 2);
-        $name = trim($name);
-        $value = trim($value);
-        if ($name === '' || getenv($name) !== false) {
-            continue;
-        }
-
-        if (strlen($value) >= 2 && $value[0] === '"' && $value[-1] === '"') {
-            $value = substr($value, 1, -1);
-        }
-
-        putenv($name . '=' . $value);
-    }
-}
+Environment::loadFromFile(__DIR__ . '/../.env');
 
 $appEnv = strtolower((string) getenv('APP_ENV'));
 ini_set('display_errors', $appEnv === 'production' ? '0' : '1');
@@ -63,9 +40,18 @@ use App\Shared\Middleware\AuthMiddleware;
 use App\Shared\Middleware\CsrfOriginMiddleware;
 use App\Shared\Middleware\RoleMiddleware;
 use App\Shared\Database\Database;
+use App\Shared\Database\DatabaseBusyException;
+use App\Shared\Database\MigrationPendingException;
 
 // 1. Instancia de BD SQLite
-$pdo = Database::getConnection();
+try {
+    $pdo = Database::getConnection();
+} catch (MigrationPendingException | DatabaseBusyException $exception) {
+    \App\Shared\Http\Router::sendServiceUnavailable(
+        (string) ($_SERVER['REQUEST_URI'] ?? '/')
+    );
+    exit;
+}
 
 // 2. Instancia del EventDispatcher (Observer Pattern)
 $eventDispatcher = new EventDispatcher();
