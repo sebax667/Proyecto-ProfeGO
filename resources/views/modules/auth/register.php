@@ -52,7 +52,7 @@ declare(strict_types=1);
                     </h2>
                 </div>
 
-                <form id="register-form" action="/api/auth/register" method="post" class="space-y-5">
+                <form id="register-form" action="/api/auth/register" method="post" class="space-y-5" novalidate>
                     <div>
                         <label for="register-name" class="profego-label">Nombre</label>
                         <input
@@ -63,6 +63,7 @@ declare(strict_types=1);
                             class="profego-input"
                             placeholder="Tu nombre completo"
                         >
+                        <p id="name-msg" class="mt-1 text-xs text-red-600" aria-live="polite"></p>
                     </div>
 
                     <div>
@@ -76,6 +77,7 @@ declare(strict_types=1);
                             class="profego-input"
                             placeholder="tu@email.com"
                         >
+                        <p id="email-msg" class="mt-1 text-xs text-red-600" aria-live="polite"></p>
                     </div>
 
                     <div>
@@ -85,11 +87,22 @@ declare(strict_types=1);
                             name="password"
                             type="password"
                             required
-                            minlength="8"
+                            minlength="10"
                             autocomplete="new-password"
                             class="profego-input"
-                            placeholder="Mínimo 8 caracteres"
+                            placeholder="Mínimo 10 caracteres"
                         >
+                        <p id="password-msg" class="mt-1 text-xs text-red-600" aria-live="polite"></p>
+                    </div>
+
+                    <div class="space-y-2">
+                        <label class="flex items-start gap-3 text-sm text-slate-700">
+                            <input type="checkbox" name="terms" required>
+                            <span>
+                                Acepto los <a href="#" id="open-terms" class="font-semibold text-indigo-600 hover:text-indigo-500">términos y condiciones</a>
+                            </span>
+                        </label>
+                        <p id="terms-msg" class="text-xs text-red-600" aria-live="polite"></p>
                     </div>
 
                     <button type="submit" class="profego-button w-full">
@@ -98,6 +111,21 @@ declare(strict_types=1);
 
                     <p id="register-error" class="profego-form-error" role="alert" hidden></p>
                 </form>
+
+                <dialog id="terms-dialog" class="max-w-lg rounded-3xl p-0 shadow-2xl">
+                    <div class="p-6">
+                        <h2 class="text-2xl font-black text-slate-900">Términos y condiciones</h2>
+                        <p class="mt-4 text-sm leading-6 text-slate-600">
+                            Al crear una cuenta en ProfeGo aceptas usar la plataforma conforme a nuestra política de privacidad,
+                            la protección de datos del usuario y el uso responsable de la información personal compartida con tutores.
+                            Tu registro se usa únicamente para gestionar tus sesiones, la seguridad del acceso y la comunicación dentro
+                            de la plataforma. Nos reservamos el derecho a bloquear actividades sospechosas o fraudulentas.
+                        </p>
+                        <button type="button" id="close-terms" class="profego-button-secondary mt-6 w-full">
+                            Cerrar
+                        </button>
+                    </div>
+                </dialog>
 
                 <p class="mt-6 text-center text-sm text-slate-600">
                     ¿Ya tienes cuenta?
@@ -109,40 +137,6 @@ declare(strict_types=1);
         </div>
     </div>
 
-    <script>
-        document.getElementById('register-form').addEventListener('submit', async (event) => {
-            event.preventDefault();
-            const form = event.currentTarget;
-            const error = document.getElementById('register-error');
-            const button = form.querySelector('button[type="submit"]');
-            button.disabled = true;
-            error.hidden = true;
-
-            try {
-                const response = await fetch(form.action, {
-                    method: 'POST',
-                    credentials: 'include',
-                    headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                    body: JSON.stringify({
-                        name: form.elements.name.value,
-                        email: form.elements.email.value,
-                        password: form.elements.password.value
-                    })
-                });
-                const payload = await response.json();
-
-                if (!response.ok || payload.status !== 'success') {
-                    throw new Error(payload.message || 'No se pudo crear la cuenta.');
-                }
-
-                window.location.assign('/login');
-            } catch (requestError) {
-                error.textContent = requestError.message;
-                error.hidden = false;
-            } finally {
-                button.disabled = false;
-            }
-        });
-    </script>
+    <script src="/assets/js/register.js" defer></script>
 </body>
 </html>

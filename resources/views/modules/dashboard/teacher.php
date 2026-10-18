@@ -2,8 +2,10 @@
 
 declare(strict_types=1);
 
+$user = $user ?? ['name' => 'Usuario'];
+$escapedUserName = htmlspecialchars((string) $user['name'], ENT_QUOTES, 'UTF-8');
 $pageTitle = 'Dashboard | ProfeGo';
-$pageContent = <<<'HTML'
+$pageContent = <<<HTML
 <section class="space-y-8">
     <div class="rounded-[32px] border border-slate-200 bg-gradient-to-r from-indigo-600 to-blue-500 p-6 text-white shadow-[0_28px_64px_-38px_rgba(79,70,229,0.9)] sm:p-8">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -12,7 +14,7 @@ $pageContent = <<<'HTML'
                     Panel del tutor
                 </p>
                 <h1 class="mt-3 text-3xl font-black tracking-tight sm:text-4xl">
-                    Gestiona tus tutorías con claridad
+                    Hola, {$escapedUserName}
                 </h1>
                 <p class="mt-3 max-w-2xl text-base text-indigo-100">
                     Consulta sesiones, ajusta tu disponibilidad y mantén tu perfil listo para nuevas oportunidades.

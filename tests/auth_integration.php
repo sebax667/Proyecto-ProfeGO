@@ -22,19 +22,42 @@ after: {
 
 $controller = new AuthController();
 
+$missingTerms = $controller->handleRegister([
+    'name' => 'Sin términos',
+    'email' => 'sin-terminos@example.com',
+    'password' => $testPassword,
+]);
+if (($missingTerms['status'] ?? null) !== 'error') {
+    throw new RuntimeException('El registro sin aceptación de términos fue permitido.');
+}
+
 $register = $controller->handleRegister([
     'name' => 'Ana García',
     'email' => 'ANA@EXAMPLE.COM',
     'password' => $testPassword,
+    'terms' => true,
 ]);
 if (($register['status'] ?? null) !== 'success') {
     throw new RuntimeException('Registro válido falló: ' . json_encode($register));
+}
+$pdo = Database::getConnection();
+$terms = $pdo->prepare('SELECT terms_accepted_at, terms_version FROM users WHERE email = :email');
+$terms->execute([':email' => 'ana@example.com']);
+$storedTerms = $terms->fetch(PDO::FETCH_ASSOC);
+if (
+    !is_array($storedTerms)
+    || !is_string($storedTerms['terms_accepted_at'] ?? null)
+    || $storedTerms['terms_accepted_at'] === ''
+    || ($storedTerms['terms_version'] ?? null) !== 'v1'
+) {
+    throw new RuntimeException('La aceptación de términos no se persistió con versión.');
 }
 
 $dup = $controller->handleRegister([
     'name' => 'Ana García',
     'email' => 'ana@example.com',
     'password' => $testPassword,
+    'terms' => true,
 ]);
 if (($dup['status'] ?? null) !== 'error') {
     throw new RuntimeException('Duplicado con distinta capitalización no fue bloqueado: ' . json_encode($dup));
@@ -44,6 +67,7 @@ $invalidType = $controller->handleRegister([
     'name' => ['bad'],
     'email' => 'bad@example.com',
     'password' => $testPassword,
+    'terms' => true,
 ]);
 if (($invalidType['status'] ?? null) !== 'error') {
     throw new RuntimeException('Tipo inválido de nombre no fue rechazado.');
@@ -53,6 +77,7 @@ $shortPassword = $controller->handleRegister([
     'name' => 'Carlos',
     'email' => 'carlos@example.com',
     'password' => 'short',
+    'terms' => true,
 ]);
 if (($shortPassword['status'] ?? null) !== 'error') {
     throw new RuntimeException('Contraseña corta no fue rechazada.');

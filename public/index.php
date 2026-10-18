@@ -24,6 +24,7 @@ if ($appEnv === 'production' && ($jwtSecret === '' || strlen($jwtSecret) < 32 ||
 }
 
 use App\Modules\Auth\Controllers\AuthController;
+use App\Modules\Auth\Repositories\UserRepository;
 use App\Modules\Bookings\Controllers\BookingController;
 use App\Modules\Bookings\Listeners\SendEmailNotificationListener;
 use App\Modules\Bookings\Repositories\BookingRepository;
@@ -94,6 +95,7 @@ $router->get('/', static function (): ?string {
 
 $router->post('/api/auth/register', [AuthController::class, 'handleRegister'], [new CsrfOriginMiddleware()]);
 $router->post('/api/auth/login', [AuthController::class, 'handleLogin'], [new CsrfOriginMiddleware()]);
+$router->get('/api/auth/me', [AuthController::class, 'me'], [AuthMiddleware::class]);
 $router->post('/api/auth/logout', [AuthController::class, 'handleLogout'], [new CsrfOriginMiddleware(), AuthMiddleware::class]);
 
 // Pasamos el objeto $catalogController YA INSTANCIADO dentro del array:
@@ -133,18 +135,32 @@ $renderModule = static function (string $view, string $title, array $data = []):
         return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>404 | ProfeGo</title></head><body><h1>404</h1><p>La vista solicitada no está disponible.</p></body></html>';
     }
 
-    // Convertimos el array de datos en variables reales para la vista
     extract($data);
-    
+
     ob_start();
     require $viewPath;
     return (string) ob_get_clean();
 };
 
-$router->get('/dashboard', static function (array $request, ?array $authUser) use ($renderModule, $pdo): string {
-    $role = (string) ($authUser['role'] ?? 'student');
-    $userId = (int) ($authUser['id'] ?? $authUser['sub'] ?? 0);
-    $data = [];
+$currentUser = static function (?array $authUser): ?array {
+    $userId = (int) (($authUser['user_id'] ?? $authUser['id'] ?? $authUser['sub'] ?? 0));
+    if ($userId <= 0) {
+        return null;
+    }
+
+    return (new UserRepository())->findById($userId);
+};
+
+$router->get('/dashboard', static function (array $request, ?array $authUser) use ($renderModule, $pdo, $currentUser): string {
+    $user = $currentUser($authUser);
+    if ($user === null) {
+        header('Location: /login', true, 302);
+        return '';
+    }
+
+    $role = (string) ($user['role'] ?? 'student');
+    $userId = (int) ($user['id'] ?? 0);
+    $data = ['user' => $user];
 
     if ($role === 'tutor' || $role === 'admin') {
         $view = 'dashboard/teacher.php';
@@ -173,21 +189,24 @@ $router->get('/dashboard', static function (array $request, ?array $authUser) us
     return $renderModule($view, 'Dashboard | ProfeGo', $data);
 }, [AuthMiddleware::class]);
 
-$router->get('/chat', static function () use ($renderModule): string {
-    if (session_status() === PHP_SESSION_NONE) {
-        session_start();
-    }
-
-    if (!isset($_SESSION['user_id'])) {
+$router->get('/chat', static function (array $request, ?array $authUser) use ($renderModule, $currentUser): string {
+    $user = $currentUser($authUser);
+    if ($user === null) {
         http_response_code(401);
         return '<!DOCTYPE html><html lang="es"><head><meta charset="UTF-8"><title>401 | ProfeGo</title></head><body><h1>401</h1><p>Debe iniciar sesión para acceder a esta vista.</p></body></html>';
     }
 
-    return $renderModule('chat/index.php', 'Chat | ProfeGo');
+    return $renderModule('chat/index.php', 'Chat | ProfeGo', ['user' => $user]);
 }, [AuthMiddleware::class]);
 
-$router->get('/settings', static function () use ($renderModule): string {
-    return $renderModule('settings/index.php', 'Configuración | ProfeGo');
+$router->get('/settings', static function (array $request, ?array $authUser) use ($renderModule, $currentUser): string {
+    $user = $currentUser($authUser);
+    if ($user === null) {
+        header('Location: /login', true, 302);
+        return '';
+    }
+
+    return $renderModule('settings/index.php', 'Configuración | ProfeGo', ['user' => $user]);
 }, [AuthMiddleware::class]);
 
 // --- Rutas Protegidas ---

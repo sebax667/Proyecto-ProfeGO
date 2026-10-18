@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Modules\Auth\Controllers;
 
+use App\Modules\Auth\Repositories\UserRepository;
 use App\Modules\Auth\Services\AuthService;
 use App\Shared\DTOs\RegisterUserDTO;
 use App\Shared\Enums\UserRole;
@@ -22,10 +23,19 @@ class AuthController
         $name = $request['name'] ?? '';
         $email = $request['email'] ?? '';
         $password = $request['password'] ?? '';
+        $terms = $request['terms'] ?? false;
 
         $normalizedName = trim(is_string($name) ? $name : '');
         $normalizedEmail = strtolower(trim(is_string($email) ? $email : ''));
         $normalizedPassword = is_string($password) ? $password : '';
+        $acceptedTerms = $terms === true || (is_string($terms) && strtolower($terms) === 'true');
+
+        if (!$acceptedTerms) {
+            return [
+                'status' => 'error',
+                'message' => 'Debes aceptar los términos y condiciones para registrarte.'
+            ];
+        }
 
         if ($this->invalidName($normalizedName) || $this->invalidEmail($normalizedEmail) || $this->invalidPassword($normalizedPassword)) {
             return [
@@ -60,8 +70,12 @@ class AuthController
 
         if (($result['status'] ?? null) === 'success' && isset($result['token'])) {
             $secure = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') || (strtolower((string) getenv('APP_ENV')) === 'production');
+            $expiresAt = (int) ($result['session_expires_at'] ?? 0);
+            if ($expiresAt <= time()) {
+                throw new \RuntimeException('El token de sesión no tiene una expiración válida.');
+            }
             setcookie('profego_token', (string) $result['token'], [
-                'expires' => time() + 3600,
+                'expires' => $expiresAt,
                 'path' => '/',
                 'secure' => $secure,
                 'httponly' => true,
@@ -69,6 +83,7 @@ class AuthController
             ]);
 
             unset($result['token']);
+            unset($result['session_expires_at']);
         }
 
         return $result;
@@ -92,6 +107,30 @@ class AuthController
         return [
             'status' => 'success',
             'message' => 'Sesión cerrada correctamente.',
+        ];
+    }
+
+    public function me(array $request, ?array $authUser = null): array
+    {
+        $userId = (int) (($authUser['user_id'] ?? $authUser['id'] ?? 0));
+        if ($userId <= 0) {
+            return [
+                'status' => 'unauthorized',
+                'message' => 'Sesión inválida.',
+            ];
+        }
+
+        $user = (new UserRepository())->findById($userId);
+        if ($user === null) {
+            return [
+                'status' => 'unauthorized',
+                'message' => 'Sesión inválida.',
+            ];
+        }
+
+        return [
+            'status' => 'success',
+            'user' => $user,
         ];
     }
 
