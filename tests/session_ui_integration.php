@@ -55,7 +55,7 @@ fclose($socket);
 $port = (int) substr((string) strrchr((string) $address, ':'), 1);
 $baseUrl = 'http://127.0.0.1:' . $port;
 $descriptorSpec = [
-    0 => ['file', 'NUL', 'r'],
+    0 => ['pipe', 'r'],
     1 => ['file', $logPath, 'a'],
     2 => ['file', $errorPath, 'a'],
 ];
@@ -63,6 +63,7 @@ $process = proc_open([PHP_BINARY, '-S', '127.0.0.1:' . $port, '-t', $root . '/pu
 if (!is_resource($process)) {
     throw new RuntimeException('No se pudo iniciar el servidor HTTP de integración.');
 }
+fclose($pipes[0]);
 
 try {
     $registerPage = null;
