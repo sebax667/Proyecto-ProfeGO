@@ -14,11 +14,11 @@ Las credenciales reales de tutor y estudiante se generan desde el seeder y deben
 
 1. El repositorio se valida en GitHub Actions.
 2. El pipeline de CI exige Composer, lint PHP, shellcheck equivalente con `bash -n`, compilación de CSS y ejecución de los scripts de prueba.
-3. El despliegue automático solo continúa tras CI exitoso en `main`; el despacho manual también está limitado a `main` y requiere el entorno protegido y secrets de servidor.
-4. El job de despliegue respalda la base, desactiva la migración automática, comprueba la versión inicial, actualiza el repositorio, aplica y valida las migraciones, y recarga PHP-FPM.
-5. El smoke test exige HTTP 403/404 para `.env` y la base SQLite y valida los encabezados de seguridad de `/catalog`.
+3. El despliegue automático solo continúa tras CI exitoso por push a `main`; el despacho manual también está limitado a `main` y requiere el environment protegido y sus secrets.
+4. El job verifica la host key ED25519 fijada en `VPS_KNOWN_HOSTS`, respalda SQLite, desactiva la migración automática, despliega el SHA exacto probado, aplica y valida las migraciones, revisa salud/logs y revierte al backup/commit anterior ante fallos.
+5. El smoke test público exige HTTP 403/404 para rutas sensibles y valida los encabezados de seguridad.
 
-Las acciones de terceros del workflow están fijadas a commits SHA. Los workflows no se ejecutan desde esta guía; el despliegue remoto pertenece exclusivamente al pipeline protegido.
+Las acciones de terceros del workflow están fijadas a commits SHA. La preparación de VPS, known_hosts, sudoers, secuencia y rollback se documentan en [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md).
 
 ## Variables de entorno relevantes
 

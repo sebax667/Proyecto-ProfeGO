@@ -32,16 +32,19 @@ código distinto de cero.
 
 ### Despliegue recomendado
 
-Con el servidor todavía sin tráfico de la nueva versión:
+El procedimiento de producción, incluidos backup verificado, `AUTO_MIGRATE=0`,
+despliegue de SHA exacto, helpers, rollback y health checks, está en
+[`docs/DESPLIEGUE.md`](../DESPLIEGUE.md). La secuencia manual de referencia, con
+el servidor todavía sin tráfico de la nueva versión, es:
 
-1. Crear el respaldo: `sudo -n /usr/local/bin/profego-backup`.
+1. Crear y validar el respaldo: `sudo -n /usr/local/sbin/profego-backup`.
 2. Configurar `AUTO_MIGRATE=0` en `.env` antes de actualizar el checkout.
 3. Consultar estado: `php scripts/migrate.php --status`; en esta actualización se exige `user_version: 2`.
 4. Actualizar código y dependencias; consultar de nuevo el estado y confirmar versión inicial 2 y máxima 9.
 5. Aplicar una sola vez: `php scripts/migrate.php`.
 6. Confirmar `user_version: 9`, `integrity_check: ok` y `foreign_key_check: sin errores` en la salida y que no haya migraciones pendientes.
-7. Corregir permisos: `sudo -n /usr/local/bin/profego-fix-perms`.
-8. Recargar PHP-FPM y habilitar tráfico. Se recomienda mantener `AUTO_MIGRATE=0` como control de despliegue.
+7. Corregir permisos: `sudo -n /usr/local/sbin/profego-fix-perms`.
+8. Recargar PHP-FPM/Nginx y verificar `/catalog`. Se recomienda mantener `AUTO_MIGRATE=0`.
 
 El pipeline de producción sigue este orden mediante los helpers instalados en el VPS. `JWT_TTL` es opcional; por defecto la sesión dura 28.800 segundos (8 horas). Las sesiones existentes se invalidan con la migración de autenticación, por lo que todos los usuarios deberán iniciar sesión de nuevo.
 
@@ -81,7 +84,7 @@ búsquedas sin filtro mantienen el comportamiento previo.
 No hay migraciones de reversa. Antes de actualizar el servidor se debe ejecutar:
 
 ```sh
-sudo -n /usr/local/bin/profego-backup
+sudo -n /usr/local/sbin/profego-backup
 ```
 
 Si se requiere volver atrás, restaura la copia completa de la base de datos creada por

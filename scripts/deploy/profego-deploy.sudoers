@@ -1,0 +1,11 @@
+# Sustituye DEPLOY_USER por el usuario SSH real antes de instalar.
+DEPLOY_USER ALL=(root) NOPASSWD: \
+    /usr/local/sbin/profego-backup "", \
+    /usr/local/sbin/profego-set-auto-migrate-off "", \
+    /usr/local/sbin/profego-migration-status "", \
+    /usr/local/sbin/profego-migrate "", \
+    /usr/local/sbin/profego-restore-backup "", \
+    /usr/local/sbin/profego-mark-healthcheck-start "", \
+    /usr/local/sbin/profego-check-service-logs "", \
+    /usr/local/sbin/profego-fix-perms "", \
+    /usr/local/sbin/profego-reload-services ""

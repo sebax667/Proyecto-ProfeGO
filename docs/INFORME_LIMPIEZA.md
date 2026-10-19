@@ -43,7 +43,7 @@ SQL de SQL Server y contenido bajo `docs/`; no se incluyeron en la limpieza.
 | `docs/auditoria/parches_seguridad_profego_2.md` | Documento actualmente vacío, candidato a retirar o restaurar su contenido histórico. | Mide 2 bytes y contiene solo whitespace; no se encontró referencia por nombre en los 118 archivos rastreados de la base auditada. El commit `459601c` (2026-10-04 11:23:56 -05:00) eliminó 11 líneas sobre CSRF/origen, sesiones JWT, `JWT_SECRET`, migraciones idempotentes y smoke tests de rutas protegidas. | Medio |
 | `docs/auditoria/schema_profego.sql` | Archivo SQL vacío; posible copia/snapshot de esquema. **Revisar manualmente; no eliminar:** podría ser respaldo o fuente histórica protegida. | Mide 2 bytes; mismo SHA-256 que los otros documentos vacíos. Su nombre y extensión SQL impiden asumir que sea descartable. | Alto |
 | `.gitignore` | Ignorar guía local, credenciales locales, respaldos y artefactos generados. | `docs/GUIA_PROFESORES.md` estaba presente localmente sin regla; se agregaron reglas para esa guía, claves comunes, `.bak`/`.backup`, archivos de journal SQLite y logs/build caches. Se verificó con `git check-ignore`. | Bajo |
-| `deploy/remote_deploy.sh`, `.github/workflows/deploy.yml` y documentación de despliegue | Revisar/actualizar antes de declarar listo el despliegue. No son candidatos a borrar. | La rama incorpora el commit de despliegue de la PR #11: backup, `AUTO_MIGRATE=0`, precondición `user_version: 2`, migraciones y validación hasta 9. El workflow en `main` falló al validar la clave ED25519 del host; la PR #11 sigue abierta y exige preparación del VPS. | Alto |
+| `.github/workflows/deploy.yml`, `scripts/deploy/` y `docs/DESPLIEGUE.md` | Preparación y revisión de despliegue, no candidatos a borrar. | La rama despliega el SHA exacto probado por CI, fija `VPS_KNOWN_HOSTS`, restringe sudoers a helpers sin argumentos y añade rollback/health/log checks. El fallo previo en `main` fue `Host key verification failed`; el VPS aún requiere los pasos manuales documentados. | Alto |
 
 ### Referencias, dependencias y código conservable
 
@@ -91,9 +91,9 @@ SQL de SQL Server y contenido bajo `docs/`; no se incluyeron en la limpieza.
 
 | Check | Resultado | Evidencia / nota |
 | --- | --- | --- |
-| Sintaxis PHP | ✅ | `php -l` en 83 archivos PHP rastreados. |
-| Composer validate/install | ✅ | `composer validate --no-check-publish` e `install` sin errores; warning preexistente por falta de `license` en `composer.json`. |
-| Composer audit | N/A | `composer.lock` no contiene paquetes de terceros; Composer responde que no hay paquetes instalados que auditar. |
+| Sintaxis PHP | ✅ | `php -l` en los 83 archivos PHP del proyecto, incluidos scripts CLI. |
+| Composer validate/install | ✅ | `composer validate --no-check-publish` e `install --no-dev` pasan; se declara `license: proprietary`. |
+| Composer audit | N/A | `composer.lock` no contiene paquetes; `composer audit --locked` no tiene dependencias de terceros que analizar. |
 | Análisis estático / estilo | N/A | No hay configuración de PHPStan, Psalm, PHP-CS-Fixer, PHPCS ni PHPUnit. |
 | Pruebas PHP | ✅ | Los 11 scripts `tests/*.php` pasan, incluido registro/login, catálogo, perfil de tutor, reservas, escapes XSS, autorización y páginas de error. |
 | Migración desde base vacía | ✅ | `scripts/migrate.php` aplicó 001–009: `user_version: 9`, `integrity_check: ok`, `foreign_key_check: sin errores`; `--status` no deja pendientes. |
@@ -102,13 +102,23 @@ SQL de SQL Server y contenido bajo `docs/`; no se incluyeron en la limpieza.
 | npm audit | ✅ | `npm audit --audit-level=moderate`: 0 vulnerabilidades tras la actualización compatible de lock y la migración autorizada a Tailwind 4. |
 | Secret scanning | ✅ | Sin coincidencias con firmas comunes de claves/tokens en archivos rastreados. Los archivos locales ignorados no se inspeccionaron ni añadieron. |
 | Seguridad HTTP | ✅ | El smoke test valida `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` y CSP; también prueba CSRF y rutas protegidas. HSTS se emite solo para producción sobre HTTPS y lo valida el smoke test del despliegue cuando el servidor responda. |
-| Scripts de despliegue | ✅ | `bash -n` en los scripts y en los tres helpers privilegiados generados; `git diff --check` limpio. |
-| GitHub Actions | ⚠️ | CI de `main` y `quality` de la PR #11 están verdes. El workflow de deploy de `main` falló antes de actualizar el VPS por `Host key verification failed`; el nuevo check de esta rama requiere publicarse para ejecutar CI. |
-| Despliegue real | ⚠️ | El flujo está integrado y verificado localmente; no se ejecutó contra producción. Falta validar `VPS_KNOWN_HOSTS`, instalar helpers y actualizar sudoers en el VPS. |
+| Scripts de despliegue | ✅ | `bash -n` pasa en todos los scripts y helpers, incluido el backup temporal seguro; ShellCheck no está instalado localmente. |
+| YAML de Actions | ✅ | Ambos workflows parsean y conservan la clave superior `on`; CI se ejecutará de nuevo al publicar los cambios. |
+| GitHub Actions | ⏳ | Falta ejecutar CI sobre el commit actualizado de la PR #12. El deploy previo de `main` falló por `Host key verification failed`; Actions ahora exige una línea ED25519 verificada y SSH estricto. |
+| Despliegue real | ⚠️ | El flujo está preparado en repositorio; no se ejecutó contra producción. Falta validar `VPS_KNOWN_HOSTS`, instalar los helpers y actualizar sudoers en el VPS. |
 
 El escaneo de firma no sustituye Gitleaks ni auditoría de secretos en el historial;
 Gitleaks corre en CI. No se detectó una configuración de análisis estático PHP que
 pudiera ejecutarse.
+
+### Preparación de despliegue añadida a la PR #12
+
+El inventario de rutas rastreadas que sigue corresponde a la base de auditoría de
+118 archivos; la preparación posterior de despliegue añade `docs/DESPLIEGUE.md` y
+los 13 archivos de `scripts/deploy/`, actualiza los workflows y reemplaza los
+helpers antiguos de `deploy/`. No se cambian las migraciones ni `scripts/migrate.php`.
+El smoke local usa HTTPS por loopback con el host de `APP_URL`; tanto el runner como
+los scripts validan el host antes de pasarlo por SSH/curl. No se probó contra el VPS.
 
 ## Inventario completo de rutas rastreadas
 

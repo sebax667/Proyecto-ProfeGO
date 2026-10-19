@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -ne 0 ]; then
+    echo "Este helper no acepta argumentos." >&2
+    exit 2
+fi
+
+env_file=/var/www/profego/.env
+if [ ! -f "$env_file" ] || [ -L "$env_file" ]; then
+    echo "No se pudo actualizar .env de forma segura." >&2
+    exit 1
+fi
+
+temporary_file="$(/usr/bin/mktemp "${env_file}.tmp.XXXXXX")"
+trap '/usr/bin/rm -f "$temporary_file"' EXIT
+/usr/bin/awk '
+    BEGIN { found = 0 }
+    /^[[:space:]]*AUTO_MIGRATE[[:space:]]*=/ {
+        if (!found) {
+            print "AUTO_MIGRATE=0"
+            found = 1
+        }
+        next
+    }
+    { print }
+    END {
+        if (!found) print "AUTO_MIGRATE=0"
+    }
+' "$env_file" > "$temporary_file"
+/usr/bin/chown --reference="$env_file" "$temporary_file"
+/usr/bin/chmod --reference="$env_file" "$temporary_file"
+/usr/bin/mv -f "$temporary_file" "$env_file"
+trap - EXIT

@@ -1,6 +1,7 @@
 {
     "name": "proyecto/sistema-web",
     "description": "Arquitectura modular por dominios",
+    "license": "proprietary",
     "type": "project",
     "autoload": {
         "psr-4": {
