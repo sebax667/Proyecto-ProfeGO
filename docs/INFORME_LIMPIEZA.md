@@ -2,8 +2,10 @@
 
 Fecha de auditoría: 2026-10-19
 Rama: `chore/limpieza-qa`, creada desde `origin/main` (`f9ff319`).
-Alcance: archivos rastreados por Git y referencias en código, pruebas, documentación,
-scripts y workflows. No se inspeccionó el contenido de archivos locales no rastreados.
+Alcance: inventario versionado y búsquedas de referencias en código, pruebas,
+documentación, scripts y workflows. Los artefactos locales no rastreados se
+preservaron; no se leyeron los contenidos de claves, `.env`, bases SQLite ni la guía
+local.
 
 ## Inventario
 
@@ -28,8 +30,9 @@ Directorios principales incluidos:
 
 Los directorios locales `vendor/` y `node_modules/`, `.env` y `database.sqlite` no
 son archivos rastreados. `.env`, `database.sqlite`, `vendor/` y `node_modules/`
-están cubiertos por `.gitignore`. Se preservaron los archivos y rutas locales
-no rastreados sin inspeccionar sus contenidos.
+están cubiertos por `.gitignore`. Se preservaron asimismo archivos locales no
+rastreados: una pareja de clave local, una ruta de trabajo bajo `app/`, un esquema
+SQL de SQL Server y contenido bajo `docs/`; no se incluyeron en la limpieza.
 
 ## Candidatos y hallazgos
 
@@ -39,8 +42,8 @@ no rastreados sin inspeccionar sus contenidos.
 | `docs/auditoria/parches_seguridad_profego.md` | Documento actualmente vacío, candidato a retirar o restaurar su contenido histórico. | Mide 2 bytes y contiene solo whitespace; no se encontró referencia por nombre en los 118 archivos rastreados de la base auditada. El commit `459601c` (2026-10-04 11:23:56 -05:00) eliminó 14 líneas; el commit padre contenía recomendaciones de validación de entrada/login, cookies seguras, router, configuración SQLite y respaldo. | Medio |
 | `docs/auditoria/parches_seguridad_profego_2.md` | Documento actualmente vacío, candidato a retirar o restaurar su contenido histórico. | Mide 2 bytes y contiene solo whitespace; no se encontró referencia por nombre en los 118 archivos rastreados de la base auditada. El commit `459601c` (2026-10-04 11:23:56 -05:00) eliminó 11 líneas sobre CSRF/origen, sesiones JWT, `JWT_SECRET`, migraciones idempotentes y smoke tests de rutas protegidas. | Medio |
 | `docs/auditoria/schema_profego.sql` | Archivo SQL vacío; posible copia/snapshot de esquema. **Revisar manualmente; no eliminar:** podría ser respaldo o fuente histórica protegida. | Mide 2 bytes; mismo SHA-256 que los otros documentos vacíos. Su nombre y extensión SQL impiden asumir que sea descartable. | Alto |
-| `.gitignore` | Añadir una regla explícita para la guía local que no debe publicarse. | `docs/GUIA_PROFESORES.md` está presente localmente y aparece como no rastreada; la búsqueda de la ruta en `.gitignore` no encuentra regla. | Bajo |
-| `deploy/remote_deploy.sh`, `.github/workflows/deploy.yml` y documentación de despliegue | Revisar/actualizar antes de declarar listo el despliegue. No son candidatos a borrar. | En `main`, el script actual hace backup, `git reset --hard origin/main`, instala dependencias, corrige permisos y recarga FPM; no fija `AUTO_MIGRATE=0` ni ejecuta `scripts/migrate.php`. El workflow de `main` falló porque no reconocía la clave ED25519 del host. La PR #11 añade validación y migración controlada y su check `quality` pasó, pero sigue abierta y requiere preparación del VPS descrita en ella. | Alto |
+| `.gitignore` | Ignorar guía local, credenciales locales, respaldos y artefactos generados. | `docs/GUIA_PROFESORES.md` estaba presente localmente sin regla; se agregaron reglas para esa guía, claves comunes, `.bak`/`.backup`, archivos de journal SQLite y logs/build caches. Se verificó con `git check-ignore`. | Bajo |
+| `deploy/remote_deploy.sh`, `.github/workflows/deploy.yml` y documentación de despliegue | Revisar/actualizar antes de declarar listo el despliegue. No son candidatos a borrar. | La rama incorpora el commit de despliegue de la PR #11: backup, `AUTO_MIGRATE=0`, precondición `user_version: 2`, migraciones y validación hasta 9. El workflow en `main` falló al validar la clave ED25519 del host; la PR #11 sigue abierta y exige preparación del VPS. | Alto |
 
 ### Referencias, dependencias y código conservable
 
@@ -75,6 +78,8 @@ no rastreados sin inspeccionar sus contenidos.
   `.env.example`, configuración de Nginx, workflows, bases SQLite ni backups.
 - `docs/GUIA_PROFESORES.md` permanece local y sin rastrear. No se inspeccionó ni
   versionó. La regla explícita `docs/GUIA_PROFESORES.md` se añadió a `.gitignore`.
+  También se ignoran claves privadas comunes y nombres locales observados, sin leer
+  sus contenidos.
 - Se eliminaron los tres Markdown aprobados en el commit separado `53b3fda`
   (`chore: eliminar markdown vacíos de docs/auditoria`). Los contenidos históricos
   de los dos documentos de parches siguen recuperables desde Git; no se alteró
@@ -82,8 +87,28 @@ no rastreados sin inspeccionar sus contenidos.
 - Los elementos no rastreados locales (incluidos una carpeta de SQL, rutas bajo
   `docs/docs/` y un archivo de nombre inusual bajo `app/`) se preservaron y no se
   incluyeron en el inventario versionado ni en una propuesta de eliminación.
-- Esta fase no ejecutó pruebas, builds, auditorías de dependencias ni escaneo de
-  secretos: se reserva para QA después de resolver los elementos de riesgo medio/alto.
+## QA ejecutado
+
+| Check | Resultado | Evidencia / nota |
+| --- | --- | --- |
+| Sintaxis PHP | ✅ | `php -l` en 83 archivos PHP rastreados. |
+| Composer validate/install | ✅ | `composer validate --no-check-publish` e `install` sin errores; warning preexistente por falta de `license` en `composer.json`. |
+| Composer audit | N/A | `composer.lock` no contiene paquetes de terceros; Composer responde que no hay paquetes instalados que auditar. |
+| Análisis estático / estilo | N/A | No hay configuración de PHPStan, Psalm, PHP-CS-Fixer, PHPCS ni PHPUnit. |
+| Pruebas PHP | ✅ | Los 11 scripts `tests/*.php` pasan, incluido registro/login, catálogo, perfil de tutor, reservas, escapes XSS, autorización y páginas de error. |
+| Migración desde base vacía | ✅ | `scripts/migrate.php` aplicó 001–009: `user_version: 9`, `integrity_check: ok`, `foreign_key_check: sin errores`; `--status` no deja pendientes. |
+| Migración desde versión anterior | ✅ | `migration_integration.php` migra desde `user_version: 2` hasta 9; `terms_migration_integration.php` prueba 8→9. |
+| Tailwind / assets | ✅ | `npm ci`, `npm run build:css` con Tailwind y CLI 4.3.0; las rutas locales de assets existen y los componentes CSS se generan. |
+| npm audit | ✅ | `npm audit --audit-level=moderate`: 0 vulnerabilidades tras la actualización compatible de lock y la migración autorizada a Tailwind 4. |
+| Secret scanning | ✅ | Sin coincidencias con firmas comunes de claves/tokens en archivos rastreados. Los archivos locales ignorados no se inspeccionaron ni añadieron. |
+| Seguridad HTTP | ✅ | El smoke test valida `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` y CSP; también prueba CSRF y rutas protegidas. HSTS se emite solo para producción sobre HTTPS y lo valida el smoke test del despliegue cuando el servidor responda. |
+| Scripts de despliegue | ✅ | `bash -n` en los scripts y en los tres helpers privilegiados generados; `git diff --check` limpio. |
+| GitHub Actions | ⚠️ | CI de `main` y `quality` de la PR #11 están verdes. El workflow de deploy de `main` falló antes de actualizar el VPS por `Host key verification failed`; el nuevo check de esta rama requiere publicarse para ejecutar CI. |
+| Despliegue real | ⚠️ | El flujo está integrado y verificado localmente; no se ejecutó contra producción. Falta validar `VPS_KNOWN_HOSTS`, instalar helpers y actualizar sudoers en el VPS. |
+
+El escaneo de firma no sustituye Gitleaks ni auditoría de secretos en el historial;
+Gitleaks corre en CI. No se detectó una configuración de análisis estático PHP que
+pudiera ejecutarse.
 
 ## Inventario completo de rutas rastreadas
 

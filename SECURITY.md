@@ -2,13 +2,15 @@
 
 ## Reporting a vulnerability
 
-Please report security issues privately by emailing the project maintainer at security@example.com or by opening a private report through the repository security tab.
+Please report security issues privately through the repository's Security tab. Do not
+include credentials, personal data, or production database contents in a report.
 
 Do not disclose details publicly until a fix is available and the issue has been assessed.
 
 ## Supported versions
 
-The project is currently maintained on the main branch and the active hardening branch for release validation.
+The `main` branch is the maintained release line. Changes under review are not
+supported releases until merged.
 
 ## Disclosure expectations
 
