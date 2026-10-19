@@ -11,6 +11,7 @@ node_modules/
 *.sqlite-shm
 /database/*.sqlite-wal
 /database/*.sqlite-shm
+docs/GUIA_PROFESORES.md
 .phpunit.result.cache
 .idea/
 .vscode/
