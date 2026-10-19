@@ -24,12 +24,12 @@ fi
 printf 'PREVIOUS_COMMIT=%s\n' "$previous_commit"
 
 sudo -n /usr/local/sbin/profego-backup
-rollback_required=0
+migration_started=0
 
 rollback() {
     local original_status=$?
     trap - ERR EXIT
-    if [ "$original_status" -eq 0 ] || [ "${rollback_required:-0}" -ne 1 ]; then
+    if [ "$original_status" -eq 0 ] || [ "$migration_started" -ne 1 ]; then
         return
     fi
 
@@ -71,9 +71,7 @@ rollback() {
     exit "$original_status"
 }
 trap rollback EXIT
-
 echo "Aviso: se espera HTTP 503 temporal mientras el esquema esté pendiente de migración."
-rollback_required=1
 sudo -n /usr/local/sbin/profego-set-auto-migrate-off
 
 initial_status="$(sudo -n /usr/local/sbin/profego-migration-status)"
@@ -106,6 +104,7 @@ if [[ ! "$pending_version" =~ ^[0-9]+$ ]] || [[ ! "$maximum_version" =~ ^[0-9]+$
     exit 1
 fi
 
+migration_started=1
 migration_output="$(sudo -n /usr/local/sbin/profego-migrate)"
 printf '%s\n' "$migration_output"
 final_version="$(/usr/bin/sed -n 's/^user_version: //p' <<<"$migration_output")"
@@ -139,6 +138,6 @@ fi
 
 sudo -n /usr/local/sbin/profego-check-service-logs
 
-rollback_required=0
+migration_started=0
 trap - ERR EXIT
 echo "Despliegue completado: ${DEPLOY_COMMIT}; user_version ${maximum_version}; /catalog HTTP 200."

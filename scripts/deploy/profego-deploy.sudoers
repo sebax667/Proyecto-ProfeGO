@@ -1,5 +1,5 @@
-# Sustituye DEPLOY_USER por el usuario SSH real antes de instalar.
-DEPLOY_USER ALL=(root) NOPASSWD: \
+# Sustituye DEPLOY_USER y VPS_HOSTNAME por los valores del servidor.
+DEPLOY_USER VPS_HOSTNAME = (root) NOPASSWD: \
     /usr/local/sbin/profego-backup "", \
     /usr/local/sbin/profego-set-auto-migrate-off "", \
     /usr/local/sbin/profego-migration-status "", \

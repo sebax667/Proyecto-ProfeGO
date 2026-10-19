@@ -81,8 +81,8 @@ versión.
 
 ### Instalar y validar sudoers
 
-Reemplaza el único token `DEPLOY_USER` del ejemplo por el usuario SSH real; no uses
-comodines ni amplíes la lista:
+Sustituye `DEPLOY_USER` por el usuario SSH real y `VPS_HOSTNAME` por el resultado de
+`hostname -f` en el VPS. No uses comodines ni amplíes la lista:
 
 ```bash
 sudo visudo -f /etc/sudoers.d/profego-deploy
@@ -90,7 +90,7 @@ sudo visudo -f /etc/sudoers.d/profego-deploy
 
 Copia en ese archivo el contenido revisado de
 [`scripts/deploy/profego-deploy.sudoers`](../scripts/deploy/profego-deploy.sudoers),
-con el usuario sustituido. Cada comando está fijado a una ruta absoluta y `""`
+con ambos valores sustituidos. Cada comando está fijado a una ruta absoluta y `""`
 restringe la invocación a **cero argumentos**. Luego valida y confirma los permisos:
 
 ```bash
@@ -98,9 +98,10 @@ sudo visudo -c
 sudo -l -U deploy
 ```
 
-La lista debe mostrar únicamente los nueve helpers `/usr/local/sbin/profego-*` de
-la regla. No autorices `bash`, `git`, `systemctl`, `cp`, `sqlite3`, ni comandos con
-argumentos libres mediante sudoers.
+La regla queda limitada a ese usuario y hostname. `sudo -l -U deploy` debe mostrar
+únicamente los nueve helpers por sus rutas absolutas; no debe mostrar `ALL`,
+comodines, `bash`, `git`, `systemctl`, `cp`, `sqlite3`, ni comandos con argumentos
+libres.
 
 ### Verificar `known_hosts` antes de guardar el secreto
 
@@ -157,6 +158,10 @@ No aceptes la salida si la huella no coincide. Guarda **la línea completa** de
 8. El job comprueba también la URL pública y sus protecciones. Si el despliegue
    remoto falla después del backup, o falla el smoke test público, intenta rollback
    automático a la base respaldada y al SHA anterior.
+
+El rollback remoto solo se habilita justo al iniciar `profego-migrate`; fallos
+anteriores durante la configuración, lectura del estado, checkout o build no
+restauran una base que todavía no se ha intentado modificar.
 
 Con `AUTO_MIGRATE=0`, la aplicación ya existente responde 503 mientras detecta una
 migración pendiente. No hay una página de mantenimiento dedicada; ese 503 es el
