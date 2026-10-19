@@ -10,6 +10,20 @@ use App\Shared\Config\Environment;
 Environment::loadFromFile(__DIR__ . '/../.env');
 
 $appEnv = strtolower((string) getenv('APP_ENV'));
+$isHttps = !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off';
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('Referrer-Policy: strict-origin-when-cross-origin');
+header(
+    "Content-Security-Policy: default-src 'self'; base-uri 'self'; form-action 'self'; "
+    . "frame-ancestors 'none'; script-src 'self'; "
+    . "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+    . "font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self'"
+);
+if ($appEnv === 'production' && $isHttps) {
+    header('Strict-Transport-Security: max-age=31536000; includeSubDomains');
+}
+
 ini_set('display_errors', $appEnv === 'production' ? '0' : '1');
 error_reporting($appEnv === 'production' ? E_ALL & ~E_DEPRECATED & ~E_USER_DEPRECATED : E_ALL);
 if (session_status() === PHP_SESSION_NONE) {
