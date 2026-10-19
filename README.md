@@ -14,17 +14,18 @@ Las credenciales reales de tutor y estudiante se generan desde el seeder y deben
 
 1. El repositorio se valida en GitHub Actions.
 2. El pipeline de CI exige Composer, lint PHP, shellcheck equivalente con `bash -n`, compilación de CSS y ejecución de los scripts de prueba.
-3. El despliegue automático solo continúa tras CI exitoso en `main`; el despacho manual también está limitado a `main` y requiere el entorno protegido y secrets de servidor.
-4. El job de despliegue ejecuta la actualización del repositorio en el VPS, reinstala dependencias y recarga PHP-FPM.
-5. El smoke test exige HTTP 403/404 para `.env` y la base SQLite y valida los encabezados de seguridad de `/catalog`.
+3. El despliegue automático solo continúa tras CI exitoso por push a `main`; el despacho manual también está limitado a `main` y requiere el environment protegido y sus secrets.
+4. El job verifica la host key ED25519 fijada en `VPS_KNOWN_HOSTS`, respalda SQLite, desactiva la migración automática, despliega el SHA exacto probado, aplica y valida las migraciones, revisa salud/logs y revierte al backup/commit anterior ante fallos.
+5. El smoke test público exige HTTP 403/404 para rutas sensibles y valida los encabezados de seguridad.
 
-Las acciones de terceros del workflow están fijadas a commits SHA. Los workflows no se ejecutan desde esta guía; el despliegue remoto pertenece exclusivamente al pipeline protegido.
+Las acciones de terceros del workflow están fijadas a commits SHA. La preparación de VPS, known_hosts, sudoers, secuencia y rollback se documentan en [`docs/DESPLIEGUE.md`](docs/DESPLIEGUE.md).
 
 ## Variables de entorno relevantes
 
 - `APP_ENV` — `local`, `production` u otro valor operativo.
 - `APP_DEBUG` — controla la salida de depuración.
 - `JWT_SECRET` — secreto mínimo de 32 caracteres.
+- `JWT_TTL` — duración del token y la sesión en segundos (opcional; predeterminado: 28.800; acepta 300–2.592.000 y usa 28.800 si el valor no es válido).
 - `AI_PROVIDER` — `mock` o `openai`.
 - `OPENAI_*` — credenciales del proveedor OpenAI.
 - `VIDEO_PROVIDER` — `mock`, `googlemeet` o `teams` según el adaptador activo.
@@ -55,28 +56,33 @@ recomendado de respaldo, actualización y recuperación.
 - PHP 8.3 + Composer
 - SQLite con PDO
 - Nginx + PHP-FPM
-- Tailwind CSS 3.4
+- Tailwind CSS 4.3
 - SSR con front controller en public/index.php
 - GitHub Actions para CI/CD
 
 ## Instalación local
 
+Requisitos: PHP 8.3 con PDO SQLite, Composer, Node.js 20 y npm.
+
 ```bash
-composer install
+composer validate --no-check-publish
+composer install --no-interaction --prefer-dist
 cp .env.example .env
 npm ci
 npm run build:css
 php scripts/migrate.php --status
-php tests/auth_integration.php
-php tests/ai_integration.php
-php tests/booking_integration.php
-php tests/booking_authz_integration.php
-php tests/migration_integration.php
-php tests/migration_runtime.php
-php tests/security_http_smoke.php
+php scripts/migrate.php
+for file in tests/*.php; do php "$file"; done
 ```
 
-`security_http_smoke.php` inicia un servidor PHP local en `127.0.0.1:8087`; asegúrate de que el puerto esté disponible antes de ejecutarlo.
+`composer.json` no instala paquetes de terceros actualmente; `composer.lock` conserva
+el estado vacío y por eso Composer Audit no tiene paquetes que evaluar. Las
+dependencias del build CSS se fijan en `package-lock.json`; usa `npm audit` para
+revisar también las herramientas de desarrollo.
+
+`security_http_smoke.php` inicia un servidor PHP local en `127.0.0.1:8087`;
+asegúrate de que el puerto esté disponible. Las pruebas HTTP de interfaz inician
+sus propios servidores y usan bases temporales.
 
 ## Ejecución
 
@@ -89,17 +95,27 @@ php -S 127.0.0.1:8087 -t public
 ## Validación recomendada
 
 ```bash
-find app public resources tests database -type f -name '*.php' -print0 | xargs -0 -n1 php -l
-bash -n deploy/*.sh
+find app public resources tests database scripts -type f -name '*.php' -print0 | xargs -0 -n1 php -l
+for script in deploy/*.sh; do bash -n "$script"; done
+composer validate --no-check-publish
+npm audit
 npm run build:css
 for file in tests/*.php; do php "$file"; done
 ```
 
 ## Seguridad y cumplimiento
 
-La capa de seguridad actual incluye validación de entradas, JWT con `iss`/`exp`/`jti`, cookies con `HttpOnly` y `SameSite`, bloqueo de redirecciones abiertas y middleware de origen para CSRF.
+La capa de seguridad incluye validación de entradas, JWT con `iss`/`exp`/`jti`,
+sesiones persistentes, cookies `HttpOnly` y `SameSite`, bloqueo de redirecciones
+abiertas, middleware de origen para CSRF y encabezados CSP, anti-framing y
+`nosniff`. HSTS solo se envía en producción sobre HTTPS.
 
 ## Alcance funcional pendiente
 
-- El panel del tutor todavía muestra métricas y contenido de ejemplo estáticos; deben reemplazarse por agregados derivados de reservas reales y cubrirse con pruebas de integración.
-- La recuperación de contraseña no está implementada. El inicio de sesión no ofrece un enlace a un flujo que aún no cuenta con tokens de un solo uso, expiración y pruebas de abuso.
+- El dashboard muestra reservas reales, pero las tarjetas de métricas del tutor aún
+  son datos de ejemplo. La interfaz de `/settings` no permite todavía gestionar la
+  disponibilidad.
+- La recuperación de contraseña y un botón de cierre de sesión en la interfaz no
+  están implementados. El backend sí expone `POST /api/auth/logout`.
+- Las notificaciones de interfaz permanecen deshabilitadas hasta que existan rutas
+  de backend.

@@ -1,0 +1,37 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -ne 0 ]; then
+    echo "Este helper no acepta argumentos." >&2
+    exit 2
+fi
+
+state_directory=/var/lib/profego-deploy
+if [ ! -d "$state_directory" ] || [ -L "$state_directory" ]; then
+    echo "No existe el directorio de estado de despliegue." >&2
+    exit 1
+fi
+
+started_temporary="${state_directory}/healthcheck-start.$$"
+trap '/usr/bin/rm -f "$started_temporary"' EXIT
+/usr/bin/date -u +%s > "$started_temporary"
+/usr/bin/chown root:root "$started_temporary"
+/usr/bin/chmod 0600 "$started_temporary"
+/usr/bin/mv -f "$started_temporary" "${state_directory}/healthcheck-start"
+trap - EXIT
+
+for log_file in /var/log/nginx/profego_error.log /var/log/php8.3-fpm.log; do
+    log_name="$(/usr/bin/basename "$log_file")"
+    line_count=0
+    if [ -f "$log_file" ]; then
+        line_count="$(/usr/bin/wc -l < "$log_file")"
+        line_count="${line_count//[[:space:]]/}"
+    fi
+    log_temporary="${state_directory}/${log_name}.lines.$$"
+    trap '/usr/bin/rm -f "$log_temporary"' EXIT
+    /usr/bin/printf '%s\n' "$line_count" > "$log_temporary"
+    /usr/bin/chown root:root "$log_temporary"
+    /usr/bin/chmod 0600 "$log_temporary"
+    /usr/bin/mv -f "$log_temporary" "${state_directory}/${log_name}.lines"
+    trap - EXIT
+done

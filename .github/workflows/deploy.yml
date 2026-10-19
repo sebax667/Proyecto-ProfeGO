@@ -16,15 +16,17 @@ concurrency:
 
 jobs:
   deploy:
-    if: ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success') }}
+    if: ${{ (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') || (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'push' && github.event.workflow_run.head_repository.full_name == github.repository && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.conclusion == 'success') }}
     runs-on: ubuntu-latest
     environment: production
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
 
-      - name: Deploy over SSH
+      - name: Configure SSH host verification
         env:
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_USER: ${{ secrets.VPS_USER }}
@@ -32,18 +34,52 @@ jobs:
           VPS_KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
         run: |
           set -euo pipefail
+          [[ "$VPS_USER" =~ ^[a-z_][a-z0-9_-]*[$]?$ ]]
+          [[ "$VPS_HOST" =~ ^[A-Za-z0-9][A-Za-z0-9.-]*$ ]]
+          [[ -n "$VPS_SSH_KEY" && -n "$VPS_KNOWN_HOSTS" ]]
           install -m 700 -d "$HOME/.ssh"
           printf '%s\n' "$VPS_SSH_KEY" > "$HOME/.ssh/id_ed25519"
           chmod 600 "$HOME/.ssh/id_ed25519"
           printf '%s\n' "$VPS_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
           chmod 600 "$HOME/.ssh/known_hosts"
-          ssh -o StrictHostKeyChecking=yes -o BatchMode=yes "$VPS_USER@$VPS_HOST" 'bash -s' < deploy/remote_deploy.sh
+          ssh-keygen -F "$VPS_HOST" -f "$HOME/.ssh/known_hosts" >/dev/null
+          awk -v host="$VPS_HOST" '
+            $1 !~ /^#/ {
+              count = split($1, hosts, ",")
+              for (i = 1; i <= count; i++) {
+                if (hosts[i] == host && $2 == "ssh-ed25519") found = 1
+              }
+            }
+            END { exit !found }
+          ' "$HOME/.ssh/known_hosts"
 
-      - name: Smoke test production URL
+      - name: Deploy exact CI commit
+        id: deploy
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          DEPLOY_COMMIT: ${{ github.event.workflow_run.head_sha || github.sha }}
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          set -euo pipefail
+          [[ "$DEPLOY_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$APP_URL" =~ ^https://([A-Za-z0-9][A-Za-z0-9.-]*)$ ]]
+          health_host="${BASH_REMATCH[1]}"
+          remote_output="$(ssh -o StrictHostKeyChecking=yes -o BatchMode=yes -- \
+            "$VPS_USER@$VPS_HOST" \
+            "DEPLOY_COMMIT=$DEPLOY_COMMIT HEALTHCHECK_HOST=$health_host bash -s" \
+            < scripts/deploy/remote_deploy.sh)"
+          printf '%s\n' "$remote_output"
+          previous_commit=$(printf '%s\n' "$remote_output" | sed -n 's/^PREVIOUS_COMMIT=//p' | tail -n 1)
+          [[ "$previous_commit" =~ ^[0-9a-f]{40}$ ]]
+          printf 'previous_commit=%s\n' "$previous_commit" >> "$GITHUB_OUTPUT"
+
+      - name: Public smoke test
         env:
           APP_URL: ${{ vars.APP_URL }}
         run: |
           set -euo pipefail
+          [[ "$APP_URL" =~ ^https://([A-Za-z0-9][A-Za-z0-9.-]*)$ ]]
 
           check_blocked_path() {
             local path="$1"
@@ -71,6 +107,23 @@ jobs:
               exit 1
             fi
           done
+
+      - name: Roll back failed public smoke test
+        if: ${{ failure() && steps.deploy.outputs.previous_commit != '' }}
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          ROLLBACK_COMMIT: ${{ steps.deploy.outputs.previous_commit }}
+          APP_URL: ${{ vars.APP_URL }}
+        run: |
+          set -euo pipefail
+          [[ "$ROLLBACK_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$APP_URL" =~ ^https://([A-Za-z0-9][A-Za-z0-9.-]*)$ ]]
+          health_host="${BASH_REMATCH[1]}"
+          ssh -o StrictHostKeyChecking=yes -o BatchMode=yes -- \
+            "$VPS_USER@$VPS_HOST" \
+            "ROLLBACK_COMMIT=$ROLLBACK_COMMIT HEALTHCHECK_HOST=$health_host bash -s" \
+            < scripts/deploy/rollback.sh
 
       - name: Deployment summary
         run: |

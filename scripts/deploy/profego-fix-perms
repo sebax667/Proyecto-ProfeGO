@@ -1,0 +1,33 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -ne 0 ]; then
+    echo "Este helper no acepta argumentos." >&2
+    exit 2
+fi
+
+app_directory=/var/www/profego
+database_directory="${app_directory}/database"
+env_file="${app_directory}/.env"
+database_file="${database_directory}/database.sqlite"
+
+if [ -L "$app_directory" ] || [ -L "${app_directory}/public" ] || [ -L "$database_directory" ]; then
+    echo "La estructura de directorios de producción no puede contener symlinks." >&2
+    exit 1
+fi
+
+for required_file in "$env_file" "$database_file"; do
+    if [ ! -f "$required_file" ] || [ -L "$required_file" ]; then
+        echo "Falta un archivo de producción requerido." >&2
+        exit 1
+    fi
+done
+
+/usr/bin/chmod 0755 "$app_directory" "$app_directory/public" "$database_directory"
+/usr/bin/chown www-data:www-data "$env_file" "$database_file"
+/usr/bin/chgrp www-data "$database_directory"
+/usr/bin/chmod 0640 "$env_file"
+/usr/bin/chmod 0770 "$database_directory"
+/usr/bin/chmod 0660 "$database_file"
+/usr/bin/find "$app_directory/public" -type d -exec /usr/bin/chmod 0755 {} +
+/usr/bin/find "$app_directory/public" -type f -exec /usr/bin/chmod 0644 {} +

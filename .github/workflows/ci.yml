@@ -42,7 +42,18 @@ jobs:
       - name: Lint shell scripts
         run: |
           set -euo pipefail
-          for script in deploy/*.sh; do bash -n "$script"; done
+          for script in deploy/*.sh scripts/deploy/*.sh \
+            scripts/deploy/profego-backup \
+            scripts/deploy/profego-set-auto-migrate-off \
+            scripts/deploy/profego-migration-status \
+            scripts/deploy/profego-migrate \
+            scripts/deploy/profego-restore-backup \
+            scripts/deploy/profego-mark-healthcheck-start \
+            scripts/deploy/profego-check-service-logs \
+            scripts/deploy/profego-fix-perms \
+            scripts/deploy/profego-reload-services; do
+            bash -n "$script"
+          done
 
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020

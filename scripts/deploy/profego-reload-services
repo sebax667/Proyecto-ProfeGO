@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -ne 0 ]; then
+    echo "Este helper no acepta argumentos." >&2
+    exit 2
+fi
+
+/usr/sbin/nginx -t
+/usr/bin/systemctl reload php8.3-fpm
+/usr/bin/systemctl reload nginx

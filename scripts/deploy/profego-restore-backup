@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -ne 0 ]; then
+    echo "Este helper no acepta argumentos." >&2
+    exit 2
+fi
+
+state_file=/var/lib/profego-deploy/latest-backup
+database=/var/www/profego/database/database.sqlite
+if [ ! -f "$state_file" ] || [ -L "$state_file" ] \
+    || [ ! -d /var/www/profego/database ] || [ -L /var/www/profego/database ] \
+    || [ ! -f "$database" ] || [ -L "$database" ]; then
+    echo "No existe un backup de despliegue registrado." >&2
+    exit 1
+fi
+
+IFS= read -r backup_file < "$state_file"
+if [[ ! "$backup_file" =~ ^/var/backups/profego/pre-deploy-[0-9]{8}T[0-9]{6}Z-[0-9]+\.sqlite$ ]] \
+    || [ ! -f "$backup_file" ] \
+    || [ -L "$backup_file" ]; then
+    echo "La referencia al backup no supera la validación." >&2
+    exit 1
+fi
+
+/usr/bin/sqlite3 -readonly "$backup_file" 'PRAGMA integrity_check;' | /usr/bin/grep -qx 'ok'
+/usr/bin/systemctl stop php8.3-fpm
+temporary_database="${database}.restore.$$"
+trap '/usr/bin/rm -f "$temporary_database"; /usr/bin/systemctl start php8.3-fpm' EXIT
+/usr/bin/install -o www-data -g www-data -m 0660 "$backup_file" "$temporary_database"
+/usr/bin/mv -f "$temporary_database" "$database"
+/usr/bin/rm -f "${database}-wal" "${database}-shm"
+/usr/bin/sqlite3 -readonly "$database" 'PRAGMA integrity_check;' | /usr/bin/grep -qx 'ok'
+foreign_violations="$(/usr/bin/sqlite3 -readonly "$database" 'PRAGMA foreign_key_check;')"
+if [ -n "$foreign_violations" ]; then
+    echo "La base restaurada tiene violaciones de claves foráneas." >&2
+    exit 1
+fi
+/usr/bin/systemctl start php8.3-fpm
+trap - EXIT
+/usr/bin/printf 'Base SQLite restaurada desde %s\n' "$backup_file"

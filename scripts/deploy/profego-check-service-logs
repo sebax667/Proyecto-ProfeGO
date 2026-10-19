@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -ne 0 ]; then
+    echo "Este helper no acepta argumentos." >&2
+    exit 2
+fi
+
+state_file=/var/lib/profego-deploy/healthcheck-start
+if [ ! -f "$state_file" ] || [ -L "$state_file" ]; then
+    echo "No existe la marca de inicio de comprobación de salud." >&2
+    exit 1
+fi
+
+IFS= read -r started_epoch < "$state_file"
+if [[ ! "$started_epoch" =~ ^[0-9]{10}$ ]]; then
+    echo "La marca de inicio de comprobación de salud no es válida." >&2
+    exit 1
+fi
+
+errors="$(/usr/bin/journalctl --since "@${started_epoch}" \
+    --priority=err --unit=php8.3-fpm --unit=nginx --no-pager)"
+if [ -n "$errors" ]; then
+    printf 'Se encontraron errores nuevos en PHP-FPM/Nginx:\n%s\n' "$errors" >&2
+    exit 1
+fi
+
+for log_file in /var/log/nginx/profego_error.log /var/log/php8.3-fpm.log; do
+    log_name="$(/usr/bin/basename "$log_file")"
+    state_lines="${state_file%/*}/${log_name}.lines"
+    if [ ! -f "$log_file" ] || [ ! -f "$state_lines" ] || [ -L "$log_file" ] || [ -L "$state_lines" ]; then
+        continue
+    fi
+
+    IFS= read -r previous_count < "$state_lines"
+    if [[ ! "$previous_count" =~ ^[0-9]+$ ]]; then
+        echo "La marca de posición del log no es válida." >&2
+        exit 1
+    fi
+    current_count="$(/usr/bin/wc -l < "$log_file")"
+    current_count="${current_count//[[:space:]]/}"
+    if [[ ! "$current_count" =~ ^[0-9]+$ ]]; then
+        echo "No se pudo leer la posición del log." >&2
+        exit 1
+    fi
+
+    if [ "$current_count" -lt "$previous_count" ]; then
+        previous_count=0
+    fi
+    if ! new_lines="$(/usr/bin/tail -n "+$((previous_count + 1))" "$log_file")"; then
+        echo "No se pudo leer el log ${log_file}." >&2
+        exit 1
+    fi
+    set +e
+    new_errors="$(/usr/bin/grep -E '\[(error|crit|alert|emerg)\]' <<<"$new_lines")"
+    grep_status=$?
+    set -e
+    if [ "$grep_status" -gt 1 ]; then
+        echo "No se pudo buscar errores en el log ${log_file}." >&2
+        exit 1
+    fi
+    if [ "$grep_status" -eq 0 ]; then
+        printf 'Se encontraron errores nuevos en %s:\n%s\n' "$log_file" "$new_errors" >&2
+        exit 1
+    fi
+done
+echo "Sin errores nuevos en el journal de PHP-FPM/Nginx."

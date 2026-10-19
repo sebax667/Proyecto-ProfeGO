@@ -1,0 +1,46 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [ "$#" -ne 0 ]; then
+    echo "Este helper no acepta argumentos." >&2
+    exit 2
+fi
+
+database=/var/www/profego/database/database.sqlite
+backup_directory=/var/backups/profego
+state_directory=/var/lib/profego-deploy
+
+if [ ! -d /var/www/profego/database ] || [ -L /var/www/profego/database ] \
+    || [ ! -f "$database" ] || [ -L "$database" ]; then
+    echo "No existe una base SQLite regular en la ruta esperada." >&2
+    exit 1
+fi
+
+umask 0077
+/usr/bin/install -d -o root -g root -m 0700 "$backup_directory"
+/usr/bin/install -d -o root -g root -m 0700 "$state_directory"
+
+timestamp="$(/usr/bin/date -u +%Y%m%dT%H%M%SZ)"
+backup_file="${backup_directory}/pre-deploy-${timestamp}-$$.sqlite"
+temporary_directory="$(/usr/bin/mktemp -d /var/tmp/profego-backup.XXXXXXXXXX)"
+temporary_backup="${temporary_directory}/backup.sqlite"
+trap '/usr/bin/rm -f "$temporary_backup"; /usr/bin/rmdir "$temporary_directory"' EXIT
+/usr/bin/chown www-data:www-data "$temporary_directory"
+/usr/bin/chmod 0700 "$temporary_directory"
+/usr/sbin/runuser -u www-data -- /usr/bin/sqlite3 "$database" ".backup '$temporary_backup'"
+/usr/bin/sqlite3 -readonly "$temporary_backup" 'PRAGMA integrity_check;' | /usr/bin/grep -qx 'ok'
+/usr/bin/install -o root -g root -m 0600 "$temporary_backup" "$backup_file"
+/usr/bin/sqlite3 -readonly "$backup_file" 'PRAGMA integrity_check;' | /usr/bin/grep -qx 'ok'
+/usr/bin/rm -f "$temporary_backup"
+/usr/bin/rmdir "$temporary_directory"
+trap - EXIT
+
+state_temporary="${state_directory}/latest-backup.$$"
+trap '/usr/bin/rm -f "$state_temporary"' EXIT
+/usr/bin/printf '%s\n' "$backup_file" > "$state_temporary"
+/usr/bin/chown root:root "$state_temporary"
+/usr/bin/chmod 0600 "$state_temporary"
+/usr/bin/mv -f "$state_temporary" "${state_directory}/latest-backup"
+trap - EXIT
+
+/usr/bin/printf 'Backup verificado: %s\n' "$backup_file"

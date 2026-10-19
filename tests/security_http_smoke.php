@@ -60,6 +60,20 @@ if ($home['status'] !== 302 || !str_contains(implode("\n", $home['headers']), 'L
     $failures[] = 'La ruta raíz no redirige a /catalog con HTTP 302.';
 }
 
+$catalog = curlStatus($baseUrl . '/catalog');
+$catalogHeaders = implode("\n", $catalog['headers']);
+foreach ([
+    'X-Content-Type-Options: nosniff',
+    'X-Frame-Options: DENY',
+    'Referrer-Policy: strict-origin-when-cross-origin',
+    "Content-Security-Policy: default-src 'self'",
+    "img-src 'self' data: https:",
+] as $securityHeader) {
+    if (stripos($catalogHeaders, $securityHeader) === false) {
+        $failures[] = 'Falta un encabezado de seguridad en /catalog: ' . $securityHeader;
+    }
+}
+
 $webNotFound = curlStatus($baseUrl . '/missing-page');
 if ($webNotFound['status'] !== 404 || !str_contains($webNotFound['content'], 'Error 404')) {
     $failures[] = 'La ruta web desconocida no mostró la página HTML 404.';
