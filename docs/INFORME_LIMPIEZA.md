@@ -103,8 +103,8 @@ SQL de SQL Server y contenido bajo `docs/`; no se incluyeron en la limpieza.
 | Secret scanning | ✅ | Sin coincidencias con firmas comunes de claves/tokens en archivos rastreados. Los archivos locales ignorados no se inspeccionaron ni añadieron. |
 | Seguridad HTTP | ✅ | El smoke test valida `X-Content-Type-Options`, `X-Frame-Options`, `Referrer-Policy` y CSP; también prueba CSRF y rutas protegidas. HSTS se emite solo para producción sobre HTTPS y lo valida el smoke test del despliegue cuando el servidor responda. |
 | Scripts de despliegue | ✅ | `bash -n` pasa en todos los scripts y helpers, incluido el backup temporal seguro; ShellCheck no está instalado localmente. |
-| YAML de Actions | ✅ | Ambos workflows parsean y conservan la clave superior `on`; CI se ejecutará de nuevo al publicar los cambios. |
-| GitHub Actions | ⏳ | Falta ejecutar CI sobre el commit actualizado de la PR #12. El deploy previo de `main` falló por `Host key verification failed`; Actions ahora exige una línea ED25519 verificada y SSH estricto. |
+| YAML de Actions | ✅ | Ambos workflows parsean y conservan la clave superior `on`; el workflow de CI pasa para los cambios de despliegue. |
+| GitHub Actions | ✅ | `quality` pasó para `a6afaf7` ([run 39304282367](https://github.com/sebax667/Proyecto-ProfeGO/actions/runs/39304282367)); la actualización posterior de este informe es solo documental y también se validará en CI. El deploy previo de `main` falló por `Host key verification failed`; Actions ahora exige una línea ED25519 verificada y SSH estricto. |
 | Despliegue real | ⚠️ | El flujo está preparado en repositorio; no se ejecutó contra producción. Falta validar `VPS_KNOWN_HOSTS`, instalar los helpers y actualizar sudoers en el VPS. |
 
 El escaneo de firma no sustituye Gitleaks ni auditoría de secretos en el historial;
